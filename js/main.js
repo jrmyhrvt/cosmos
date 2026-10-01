@@ -302,6 +302,8 @@ document.addEventListener("visibilitychange", () => {
    Buttons im HTML rufen diese Funktionen aber per onclick="..." auf, also
    haengen wir sie bewusst wieder ans Fenster.
    -------------------------------------------------------------------------- */
+// Nur was die HTML-Buttons mit onclick brauchen. Der Rest bleibt im Modul,
+// damit keine zwei Module dieselbe globale Funktion doppelt vergeben.
 Object.assign(window, {
   setLanguage, changeOffset, openDetail, closeDetail,
   openGloStarDetail, jumpToGloStar, addEventToCalendar

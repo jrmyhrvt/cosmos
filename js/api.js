@@ -134,6 +134,22 @@ export function getStableEventId(item) {
 
 // Die Quelle nennt ihre Kategorie selbst - das ist die verlaesslichste
 // Information. Erst wenn sie fehlt, wird der Titel ausgewertet.
+// Ersatzfenster in Minuten fuer Ereignisse, deren Quelle kein Enddatum liefert.
+// Die Werte sind bewusst unterschiedlich: ein Raketenstart zieht sich ueber
+// Stunden, eine Finsternis ist ein Augenblick. Alles andere bleibt ein Punkt
+// auf der Zeitleiste - "jetzt" reicht dort als Live-Fenster vollkommen.
+export const STANDARD_FENSTER_MINUTEN = {
+  launch: 120,
+  eclipse: 30,
+  occultation: 15,
+  "close-approach": 15,
+  comet: 15,
+  meteor: 15,
+  "space-weather": 60,
+  aurora: 60,
+  history: 1
+};
+
 export const CATEGORY_BY_SOURCE = {
   "moon-phases":"moon",
   "meteor-showers":"meteor",
@@ -470,15 +486,21 @@ export function normalizeRecord(record, source, taken) {
     return { error: "Datum ausserhalb des gueltigen Bereichs", raw: record.startRaw };
   }
 
-  // Ein Enddatum wird nur uebernommen, wenn es wirklich nach dem Start liegt.
-  const parsedEnd = parseCosmosDate(record.endRaw);
-  const endMs = parsedEnd && parsedEnd.getTime() > startMs
-    ? parsedEnd.getTime()
-    : startMs + (record.allDay ? 24 * 3600000 : 60000);
-
   const probe = { title, category: record.category, type: record.type };
   const category = getEventCategory(probe);
   const meta = getCategoryMeta(probe);
+
+  // Ein Enddatum wird nur uebernommen, wenn es wirklich nach dem Start liegt.
+  // Fehlt es in der Quelle, gilt ein Ersatzfenster. Das ist wichtig, weil
+  // dieselbe Zahl zwei Aufgaben hat: sie bestimmt die Dauer im Kalender UND
+  // das Zeitfenster, in dem das Ereignis als "live" gefuehrt wird. Bei 60
+  // Sekunden ist dieses Fenster kuerzer als der Abstand zwischen zwei Blicken,
+  // dadurch sprang ein Ereignis scheinbar direkt in den Verlauf. Bei einem
+  // Raketenstart ist zudem ein langer Countdown ueblich, nicht eine Minute.
+  const parsedEnd = parseCosmosDate(record.endRaw);
+  const endMs = parsedEnd && parsedEnd.getTime() > startMs
+    ? parsedEnd.getTime()
+    : startMs + (record.allDay ? 24 : STANDARD_FENSTER_MINUTEN[category] || 1) * 60000;
 
   const rawItem = {
     title,

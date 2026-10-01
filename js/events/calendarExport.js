@@ -117,22 +117,48 @@ export function buildEventIcs(ev, titel, beschreibung, quelleUrl){
   return zeilen.map(icsZeileBricht).join("\r\n");
 }
 
-// Laedt die Datei herunter. Der Kalender des Geraets erkennt .ics und schlaegt
-// danach das Einlesen vor.
-export function downloadEventIcs(ev, titel, beschreibung){
+function icsDateiname(ev, titel){
+  const d = new Date(Number(ev.startMs));
+  const tag = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return `COSMOS-${tag}-${titel}`.replace(/[\\/:*?"<>|]/g, "-").slice(0, 80) + ".ics";
+}
+
+// Reihenfolge ist hier wichtig und nicht willkuerlich:
+//
+//  1. Teilen (navigator.share) - der einzige Weg, der auf iPhone und iPad
+//     wirklich funktioniert. Dort heisst die Datei "share", und der Kalender
+//     uebernimmt sie daraus mit samt Erinnerung.
+//  2. Normales Download - Windows, Android, Mac-Desktop.
+//
+// Safari zeigt bei einer Blob-URL sonst nur eine Vorschau, und "Speichern"
+// darin uebernimmt nichts. Genau das war der gemeldete Fehler: Die Datei war
+// in Ordnung, nur der Weg dahin fuehrte ins Leere.
+export async function deliverEventIcs(ev, titel, beschreibung){
   const inhalt = buildEventIcs(ev, titel, beschreibung);
-  if(!inhalt) return false;
+  if(!inhalt) return { ok: false, grund: "kein Datum" };
+
+  const datei = new File([inhalt], icsDateiname(ev, titel), { type: "text/calendar;charset=utf-8" });
+
+  if(navigator.share && (!navigator.canShare || navigator.canShare({ files: [datei] }))){
+    try {
+      await navigator.share({ files: [datei], title: titel });
+      return { ok: true, weg: "teilen" };
+    } catch(err){
+      // Abgebrochen heisst "der Nutzer wollte nicht" - das ist kein Fehler.
+      if(err && err.name === "AbortError") return { ok: false, grund: "abgebrochen" };
+    }
+  }
+
   const blob = new Blob(["\ufeff" + inhalt], { type: "text/calendar;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  const datum = new Date(Number(ev.startMs));
   a.href = url;
-  a.download = `COSMOS-${datum.getFullYear()}-${String(datum.getMonth() + 1).padStart(2, "0")}-${String(datum.getDate()).padStart(2, "0")}-${titel}`.replace(/[\\/:*?"<>|]/g, "-").slice(0, 80) + ".ics";
+  a.download = icsDateiname(ev, titel);
   document.body.appendChild(a);
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 4000);
-  return true;
+  return { ok: true, weg: "download" };
 }
 
 // Google-Calendar-Link. Google setzt dort seine eigene Erinnerung, weil es

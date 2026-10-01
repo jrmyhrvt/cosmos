@@ -2,7 +2,7 @@ import { EVENTS, getEventCategory, updateSyncInfo } from "../api.js";
 import { glostarLookupLabel, jumpToGloStar } from "../glostar/glostar.js";
 import { formatIssLat, formatIssLon, mountGlobe, pruneGlobes, updateIssReadouts } from "../iss/issManager.js";
 import { currentLang } from "../main.js";
-import { downloadEventIcs, googleCalendarUrl } from "./calendarExport.js";
+import { deliverEventIcs, googleCalendarUrl } from "./calendarExport.js";
 import { FEED_I18N, SVG_ICONS, TRANSLATIONS, cleanFeedText, extractFeedFacts, localizeRegions, translateFeedTitle } from "../translations.js";
 export let tzOffsetHours = 2; 
 export function eventState(ev, now = Date.now()){
@@ -326,7 +326,7 @@ export function openDetail(eventId, viewPrefix){
 // Legt den gerade geoeffneten Termin als .ics-Datei ab. Der Kalender des
 // Geraets uebernimmt daraus Zeit UND Erinnerung - unabhaengig davon, ob
 // COSMOS noch geoeffnet ist.
-export function addEventToCalendar(viewPrefix){
+export async function addEventToCalendar(viewPrefix){
   const detailEl = document.getElementById(`${viewPrefix}-detail`);
   const ev = EVENTS.find(item => item.id === detailEl?.dataset.openId);
   if(!ev) return false;
@@ -336,12 +336,12 @@ export function addEventToCalendar(viewPrefix){
   const beschreibung = ev.nameKey ? t[ev.descKey] : getLocalizedApiText(ev.rawItem).desc;
   const quelle = ev.sources?.length ? `Quelle: ${ev.sources.join(", ")}` : "";
 
-  const ok = downloadEventIcs(ev, titel, [beschreibung, quelle].filter(Boolean).join("\n\n"));
-  if(!ok) return false;
+  const ergebnis = await deliverEventIcs(ev, titel, [beschreibung, quelle].filter(Boolean).join("\n\n"));
+  if(!ergebnis.ok) return false;
 
   const hinweis = document.getElementById("calendarFlash");
   if(hinweis){
-    hinweis.textContent = t.calendar_done;
+    hinweis.textContent = ergebnis.weg === "teilen" ? t.calendar_shared : t.calendar_done;
     hinweis.classList.add("show");
     clearTimeout(hinweis._timer);
     hinweis._timer = setTimeout(() => hinweis.classList.remove("show"), 5200);
