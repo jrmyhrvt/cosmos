@@ -2,6 +2,7 @@ import { EVENTS, getEventCategory, updateSyncInfo } from "../api.js";
 import { glostarLookupLabel, jumpToGloStar } from "../glostar/glostar.js";
 import { formatIssLat, formatIssLon, mountGlobe, pruneGlobes, updateIssReadouts } from "../iss/issManager.js";
 import { currentLang } from "../main.js";
+import { downloadEventIcs, googleCalendarUrl } from "./calendarExport.js";
 import { FEED_I18N, SVG_ICONS, TRANSLATIONS, cleanFeedText, extractFeedFacts, localizeRegions, translateFeedTitle } from "../translations.js";
 export let tzOffsetHours = 2; 
 export function eventState(ev, now = Date.now()){
@@ -286,6 +287,22 @@ export function openDetail(eventId, viewPrefix){
     ? `${t.until} ${fmtDate(new Date(e.endMs))}`
     : `${t.until} ${fmtTime(new Date(e.endMs))}`;
 
+  // Kalender-Knopf. Dauerhafte Eintraege ohne Ende (ISS live) bekommen bewusst
+  // keinen, weil ein unendlicher Termin in keinem Kalender sinnvoll ist.
+  const kalenderBlock = Number.isFinite(e.startMs) && Number.isFinite(e.endMs)
+    ? `<div class="calendar-block">
+         <button class="calendar-btn" onclick="addEventToCalendar('${escapeHtml(viewPrefix)}')">
+           <span class="calendar-btn-icon">◷</span>
+           <span class="calendar-btn-text"><b>${t.add_calendar}</b><small>${t.add_calendar_hint}</small></span>
+         </button>
+         <a class="calendar-btn calendar-btn-ghost" target="_blank" rel="noopener"
+            href="${escapeHtml(googleCalendarUrl(e, eventName, eventDesc) || "#")}">
+           <span class="calendar-btn-icon">G</span>
+           <span class="calendar-btn-text"><b>${t.google_calendar}</b></span>
+         </a>
+       </div>`
+    : "";
+
   detailEl.innerHTML = `
     <div class="detail-backbar"><button class="back-btn" onclick="closeDetail('${viewPrefix}')">← ${t.back}</button></div>
     <div class="eyebrow">${eventKind}</div>
@@ -302,7 +319,34 @@ export function openDetail(eventId, viewPrefix){
     <p style="color:var(--muted);margin-top:15px;line-height:1.5">${eventDesc}</p>
     ${renderSourceBlock(e)}
     ${glostarBtn}
+    ${kalenderBlock}
   `;
+}
+
+// Legt den gerade geoeffneten Termin als .ics-Datei ab. Der Kalender des
+// Geraets uebernimmt daraus Zeit UND Erinnerung - unabhaengig davon, ob
+// COSMOS noch geoeffnet ist.
+export function addEventToCalendar(viewPrefix){
+  const detailEl = document.getElementById(`${viewPrefix}-detail`);
+  const ev = EVENTS.find(item => item.id === detailEl?.dataset.openId);
+  if(!ev) return false;
+
+  const t = TRANSLATIONS[currentLang];
+  const titel = ev.nameKey ? t[ev.nameKey] : getLocalizedApiText(ev.rawItem).title;
+  const beschreibung = ev.nameKey ? t[ev.descKey] : getLocalizedApiText(ev.rawItem).desc;
+  const quelle = ev.sources?.length ? `Quelle: ${ev.sources.join(", ")}` : "";
+
+  const ok = downloadEventIcs(ev, titel, [beschreibung, quelle].filter(Boolean).join("\n\n"));
+  if(!ok) return false;
+
+  const hinweis = document.getElementById("calendarFlash");
+  if(hinweis){
+    hinweis.textContent = t.calendar_done;
+    hinweis.classList.add("show");
+    clearTimeout(hinweis._timer);
+    hinweis._timer = setTimeout(() => hinweis.classList.remove("show"), 5200);
+  }
+  return true;
 }
 
 // Welche Quelle liefert dieses Event? Wird direkt am Event angezeigt,

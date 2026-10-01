@@ -1,5 +1,5 @@
 import { EVENTS, fetchSpaceCalendarFeed, lastSyncAt, loadEventCache, updateSyncInfo } from "./api.js";
-import { changeOffset, closeDetail, eventState, openDetail, renderAll, renderEvents, renderHistory, resetDetail, sortEventsAutomatically, tickCountdowns, tzOffsetHours } from "./events/eventManager.js";
+import { addEventToCalendar, changeOffset, closeDetail, eventState, openDetail, renderAll, renderEvents, renderHistory, resetDetail, sortEventsAutomatically, tickCountdowns, tzOffsetHours } from "./events/eventManager.js";
 import { GLOSTAR_DATA, jumpToGloStar, openGloStarDetail, renderGloStar } from "./glostar/glostar.js";
 import { pruneGlobes } from "./iss/issManager.js";
 import { TRANSLATIONS } from "./translations.js";
@@ -304,5 +304,5 @@ document.addEventListener("visibilitychange", () => {
    -------------------------------------------------------------------------- */
 Object.assign(window, {
   setLanguage, changeOffset, openDetail, closeDetail,
-  openGloStarDetail, jumpToGloStar
+  openGloStarDetail, jumpToGloStar, addEventToCalendar
 });

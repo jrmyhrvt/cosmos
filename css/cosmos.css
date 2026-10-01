@@ -155,3 +155,19 @@
   .globe-status strong{color:#fff}
   .globe-hint{position:absolute;right:14px;bottom:12px;padding:5px 9px;border:1px solid var(--border);border-radius:999px;background:rgba(0,0,0,.72);font-size:10px;color:var(--muted);backdrop-filter:blur(10px);pointer-events:none}
   .glostar-detail-copy{color:var(--muted);line-height:1.65;font-size:14px}
+
+  /* --- Kalender ----------------------------------------------------------------
+     Zwei gleichwertige Wege: die Datei fuer den Geraetekalender und Google.
+     Gestaltet wie die vorhandenen Karten, nur mit eigenem Symbol. */
+  .calendar-block{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px;padding-top:18px;border-top:1px solid var(--border)}
+  .calendar-btn{display:inline-flex;align-items:center;gap:11px;padding:11px 15px;border-radius:14px;border:1px solid var(--border);background:rgba(255,255,255,.05);color:#fff;font:inherit;text-align:left;text-decoration:none;cursor:pointer;transition:background .18s ease,border-color .18s ease}
+  .calendar-btn:hover{background:rgba(255,255,255,.11);border-color:rgba(255,255,255,.28)}
+  .calendar-btn:active{transform:translateY(1px)}
+  .calendar-btn-icon{flex:0 0 auto;width:30px;height:30px;display:grid;place-items:center;border-radius:9px;background:rgba(255,255,255,.08);font-size:15px;font-weight:700}
+  .calendar-btn-text{display:flex;flex-direction:column;gap:2px;line-height:1.3}
+  .calendar-btn-text b{font-size:13px;font-weight:600}
+  .calendar-btn-text small{font-size:11px;color:var(--muted);font-weight:400}
+  .calendar-btn-ghost{background:transparent}
+  .calendar-btn-ghost .calendar-btn-icon{font-size:12px}
+  .calendar-flash{margin-top:10px;font-size:11px;color:var(--muted);opacity:0;transition:opacity .25s ease}
+  .calendar-flash.show{opacity:1}
