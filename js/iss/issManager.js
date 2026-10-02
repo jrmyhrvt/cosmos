@@ -184,7 +184,7 @@ export const ISS_RING_FACTOR = 1.03;
 // Wert misst sie rund 6 Grad Bogen: bei maximalem Zoom nimmt sie etwa zwei
 // Drittel der Bildhoehe ein, davor ist sie ein kleiner Punkt. In der Szene
 // verankert waechst sie mit dem Zoom mit, statt eine Pixelgroesse zu behalten.
-export const ISS_MODELL_MASSSTAB = 0.0009;
+export const ISS_MODELL_MASSSTAB = 0.0015;
 
 export function globePointOnNearSide(instance, lon, lat){
   return globePointVisibility(instance, lon, lat) > 0;
@@ -433,6 +433,7 @@ export function drawGlobeFrame(instance, world){
 export const ISS_TEILE = (() => {
   const teile = [];
   const quadrat = (a, b, c, d, farbe) => teile.push({punkte: [a, b, c, d], farbe});
+  const dreieck = (a, b, c, farbe) => teile.push({punkte: [a, b, c], farbe});
   const quader = (x, y, z, dx, dy, dz, farbe) => {
     const p = (i, j, k) => [x + dx*i, y + dy*j, z + dz*k];
     quadrat(p(0,0,0), p(0,1,0), p(0,1,1), p(0,0,1), farbe);
@@ -442,83 +443,130 @@ export const ISS_TEILE = (() => {
     quadrat(p(0,0,1), p(0,1,1), p(1,1,1), p(1,0,1), farbe);
     quadrat(p(0,0,0), p(1,0,0), p(1,1,0), p(0,1,0), farbe);
   };
-  // Rohr entlang der x-Achse: die druckgefuellten Module und die
-  // angedockten Schiffe sind Zylinder, keine Quader.
-  const rohr = (x0, x1, r, farbe, seg = 12) => {
-    for(let i = 0; i < seg; i++){
-      const a0 = i / seg * Math.PI * 2, a1 = (i + 1) / seg * Math.PI * 2;
-      const y0 = Math.cos(a0)*r, z0 = Math.sin(a0)*r;
-      const y1 = Math.cos(a1)*r, z1 = Math.sin(a1)*r;
-      quadrat([x0,y0,z0], [x0,y1,z1], [x1,y1,z1], [x1,y0,z0], farbe);
-      const deckel = x => {
-        const c = [x, 0, 0], m = [x, 0, r];
-        quadrat(c, [x,y0,z0], m, [x,y1,z1], farbe);
-      };
-      if(i === 0){ deckel(x0); deckel(x1); }
-    }
+  const platte = (xa, xb, ya, yb, za, zb, farbe) =>
+    quader(Math.min(xa, xb), Math.min(ya, yb), Math.min(za, zb),
+           Math.abs(xb - xa), Math.abs(yb - ya), Math.abs(zb - za), farbe);
+
+  // Kreuzprodukt zweier Kanten ab pts[0]
+  const norm = pts => {
+    const u = [pts[1][0]-pts[0][0], pts[1][1]-pts[0][1], pts[1][2]-pts[0][2]];
+    const v = [pts[2][0]-pts[0][0], pts[2][1]-pts[0][1], pts[2][2]-pts[0][2]];
+    return [u[1]*v[2]-u[2]*v[1], u[2]*v[0]-u[0]*v[2], u[0]*v[1]-u[1]*v[0]];
+  };
+  const dot = (a, b) => a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
+  // Flaeche so ablegen, dass ihre Normale in Richtung ref zeigt. Nur so
+  // stimmt die Rueckseiten-Kuerzung beim Zeichnen fuer jede Achse.
+  const flaeche = (pts, farbe, ref) => {
+    if(dot(norm(pts), ref) >= 0) quadrat(pts[0], pts[1], pts[2], pts[3], farbe);
+    else quadrat(pts[0], pts[3], pts[2], pts[1], farbe);
+  };
+  const ecke = (pts, farbe, ref) => {
+    if(dot(norm(pts), ref) >= 0) dreieck(pts[0], pts[1], pts[2], farbe);
+    else dreieck(pts[0], pts[2], pts[1], farbe);
   };
 
+  // Zylinder entlang x, y oder z, optional um "mitte" versetzt. Die echten
+  // Module und Raumschiffe sind Roehren, keine Quader.
+  const zylinder = (achse, a0, a1, r, farbe, seg = 14, mitte = [0, 0, 0]) => {
+    const ai = achse === "x" ? 0 : achse === "y" ? 1 : 2;
+    const P = (a, c, s) => {
+      const p = achse === "x" ? [a, c, s] : achse === "y" ? [c, a, s] : [c, s, a];
+      return [p[0] + mitte[0], p[1] + mitte[1], p[2] + mitte[2]];
+    };
+    for(let i = 0; i < seg; i++){
+      const t0 = i / seg * Math.PI * 2, t1 = (i + 1) / seg * Math.PI * 2;
+      const c0 = Math.cos(t0) * r, s0 = Math.sin(t0) * r;
+      const c1 = Math.cos(t1) * r, s1 = Math.sin(t1) * r;
+      // Nach aussen zeigt die Flaeche, wenn ihre Normale vom Achs-Mittelpunkt
+      // wegzeigt. Die Achskomponente wird dabei herausgerechnet.
+      const m0 = Math.cos((t0 + t1) / 2), m1 = Math.sin((t0 + t1) / 2);
+      const radial = achse === "x" ? [0, m0, m1] : achse === "y" ? [m0, 0, m1] : [m0, m1, 0];
+      flaeche([P(a0,c0,s0), P(a0,c1,s1), P(a1,c1,s1), P(a1,c0,s0)], farbe, radial);
+      if(i === 0){
+        const laengs = [0, 0, 0]; laengs[ai] = -1;
+        const laengs2 = [0, 0, 0]; laengs2[ai] = 1;
+        for(let k = 0; k < seg; k++){
+          const q0 = k / seg * Math.PI * 2, q1 = (k + 1) / seg * Math.PI * 2;
+          ecke([P(a0,0,0), P(a0,Math.cos(q0)*r,Math.sin(q0)*r), P(a0,Math.cos(q1)*r,Math.sin(q1)*r)], farbe, laengs);
+          ecke([P(a1,0,0), P(a1,Math.cos(q0)*r,Math.sin(q0)*r), P(a1,Math.cos(q1)*r,Math.sin(q1)*r)], farbe, laengs2);
+        }
+      }
+    }
+  };
+  const rohr = (x0, x1, r, farbe, seg) => zylinder("x", x0, x1, r, farbe, seg);
+
   const grauTruss = [188, 196, 205];
-  const weiss = [216, 222, 229];
-  const solar = [26, 46, 92];
-  const solarRahmen = [70, 92, 140];
-  const radiator = [236, 240, 245];
-  const dunkel = [120, 128, 138];
-  // Goldene Isolierdecke. Auf der echten Station ist ein guter Teil der
-  // Module aussen mit Multilayer-Isolierung umschlagen, die im Sonnenlicht
-  // goldbraun schimmert. Das gibt dem sonst einfarbigen Modell die typische
-  // Faerbung echter Aufnahmen.
-  const mli = [191, 150, 62];
+  const weiss     = [216, 222, 229];
+  const solar     = [24, 44, 90];
+  const solarRahmen = [72, 96, 146];
+  const radiator  = [234, 239, 245];
+  const dunkel    = [120, 128, 138];
+  const mli       = [191, 150, 62];
   const mliDunkel = [150, 112, 44];
 
-  // Integrierter Truss: das Gitter in der Mitte. Statt eines massiven Balkens
-  // vier Laengsstreben plus Querstreben - so sieht man zwischen den Streben
-  // durch, wie es auf dem echten Gitterwerk der Fall ist.
-  for(const e of [-1.4, -0.5, 0.5, 1.4]){
-    quader(e, -42, -1.5, 0.55, 84, 3, grauTruss);
+  // Integrierter Truss (y-Achse). Echte Laenge 108 m, hier 90 Einheiten bei
+  // 1,2 m je Einheit. Vier Laengsstreben plus Querrahmen - das offene
+  // Gitterwerk, das die echte Station zeigt.
+  const TH = 45, TX = 1.55, TZ = 1.45;
+  for(const sx of [-1, 1]){
+    for(const sz of [-1, 1]){
+      quader(sx*TX - 0.28, -TH, sz*TZ - 0.28, 0.56, 2*TH, 0.56, grauTruss);
+    }
   }
-  for(let y = -42; y <= 42; y += 6){
-    quader(-1.6, y, -1.6, 3.2, 0.7, 3.2, grauTruss);
+  for(let y = -TH; y <= TH; y += 5){
+    quader(-TX - 0.22, y - 0.22, -TZ - 0.22, 2*TX + 0.44, 0.44, 2*TZ + 0.44, grauTruss);
   }
-  // Module in Flugrichtung, darunter der Untersturz
-  rohr(-15, 15, 2.2, weiss);
-  // Russland an einem Ende, Amerika am anderen. Die Segmente sind nicht alle
-  // weiss - die aelteren tragen die goldene Isolierung.
-  rohr(-20, -15, 1.7, mli, 10);
-  rohr(15, 20, 1.7, weiss, 10);
-  rohr(-25, -20, 1.6, mliDunkel, 10);
-  rohr(20, 25, 1.6, dunkel, 10);
-  // Kanaelen und Antennen
-  quader(-1.6, 0, 3.2, 3.2, 4, 5, weiss);
-  quader(-.6, -2, 8.2, 1.2, 4, 1.2, dunkel);
-  // Vier Solarfluegel: je zwei Panels pro Seite. Jedes Panel ist aus zwei
-  // Haelften zusammengesetzt, die einen Hauch unterschiedlich blau sind - so
-  // bekommt die Flaeche eine Gliederung, ohne dass dafuer Geometrie noetig ist.
-  for(const vorzeichen of [-1, 1]){
-    for(const seite of [-1, 1]){
-      for(const panel of [0, 1]){
-        const y0 = vorzeichen * (22 + panel * 14);
-        for(const haelfte of [0, 1]){
-          const ya = y0 + haelfte * 6;
-          const nb = haelfte ? 24 : 40;
-          quader(seite * 3, ya, -0.4, seite * 30, nb, 0.8, solar);
+
+  // Druckmodule entlang der Flugrichtung. Aussendurchmesser ~4,2 m -> r 1,75.
+  rohr(-21.5, -19.5, 1.5, dunkel, 12);   // Heckstutzen
+  rohr(-19.5, -13, 1.9, mli, 14);        // Swesda, goldene Isolierung
+  rohr(-13, -8, 1.75, weiss, 12);        // Sarja
+  rohr(-8, -6, 2.05, weiss, 12);         // Unity (Knoten)
+  rohr(-6, 4, 1.75, weiss, 14);          // Destiny (US-Labor)
+  rohr(4, 6, 2.05, weiss, 12);           // Harmony (Knoten)
+  rohr(6, 11.5, 1.75, weiss, 12);        // Tranquility / PMM
+  rohr(11.5, 13.5, 1.5, dunkel, 10);     // PMA
+  // Columbus (Steuerbord) und Kibo (Backbord) sitzen quer am Harmony-Knoten.
+  zylinder("y", 2, 7.8, 1.75, weiss, 12, [5.2, 0, 0]);
+  zylinder("y", -2, -11, 1.75, weiss, 12, [5.2, 0, 0]);
+  // Cupola, der Beobachtungsdom zur Erde hin.
+  zylinder("z", -1.8, -2.9, 1.15, weiss, 12, [-1, 0, 0]);
+  zylinder("z", -2.9, -3.3, 0.62, dunkel, 12, [-1, 0, 0]);
+
+  // Kuehler (weiss) in der Truss-Mitte.
+  for(const sy of [-1, 1]){
+    for(const sx of [-1, 1]){
+      platte(sx*3, sx*15, sy*8 - 1.4, sy*8 + 1.4, -0.3, 0.3, radiator);
+    }
+  }
+
+  // Acht Solarfluegel an vier Truss-Positionen, je Paar zwei Arme nach +/-x.
+  // Echte Fluegel 36 m lang, 4,6 m breit -> 30 x 3,8 Einheiten.
+  const WX = 27.5, WW = 3.8;
+  for(const sy of [-1, 1]){
+    for(const py of [16.5, 39]){
+      const yc = sy * py;
+      for(const sx of [-1, 1]){
+        const xa = sx * 3, xb = sx * (3 + WX);
+        platte(xa, xb, yc - WW/2, yc + WW/2, -0.35, 0.35, solar);
+        platte(xa, xb, yc - WW/2 - 0.35, yc - WW/2, -0.42, 0.42, solarRahmen);
+        platte(xa, xb, yc + WW/2, yc + WW/2 + 0.35, -0.42, 0.42, solarRahmen);
+        platte(xa, xb, yc - 0.18, yc + 0.18, -0.4, 0.4, solarRahmen);
+        for(let k = 1; k <= 5; k++){
+          const xr = sx * (3 + WX * k / 6);
+          platte(xr - 0.16, xr + 0.16, yc - WW/2, yc + WW/2, -0.4, 0.4, solarRahmen);
         }
-        // Rahmenkante, damit die Flaeche als Solarpanel erkennbar bleibt
-        quader(seite * 3, y0, -0.5, seite * 30, 1, 0.9, solarRahmen);
-        quader(seite * 3, y0 + 12, -0.5, seite * 30, 1, 0.9, solarRahmen);
-        // Schattenkante auf der Unterseite: die Panels stehen etwas ueber
-        // dem Truss und werfen daher einen schmalen Schatten.
-        quader(seite * 3.4, y0 + 1, -1.4, seite * 0.6, 11, 0.4, solarRahmen);
+        platte(sx*1.5, sx*3, yc - 0.6, yc + 0.6, -0.65, 0.65, dunkel);
       }
     }
   }
-  // Zwei Kuehler an den Enden des Trusses
-  for(const vorzeichen of [-1, 1]){
-    quader(-3, vorzeichen * 50, 0.4, 6, 9, 0.5, radiator);
-    quader(-0.3, vorzeichen * 49.5, 0.4, 0.6, 8, 4, radiator);
-    // Rohrleitung, die vom Kuehler in den Truss laeuft
-    quader(-0.5, vorzeichen * 44, -1, 1, 6, 1, mliDunkel);
-  }
+
+  // Angedockte Raumschiffe: Progress/Soyuz am russischen, Dragon am US-Ende.
+  rohr(-27, -24, 1.25, dunkel, 12);
+  rohr(-24, -22.5, 1.5, weiss, 12);
+  rohr(13.5, 17, 1.25, dunkel, 12);
+  rohr(17, 19.5, 1.55, weiss, 12);
+  zylinder("x", 19.5, 20.6, 1.0, dunkel, 12);
   return teile;
 })();
 
