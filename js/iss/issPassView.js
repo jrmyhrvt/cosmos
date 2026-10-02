@@ -88,17 +88,24 @@ function listeZeichnen(begriff){
   if(feld) feld.setAttribute("aria-expanded", "true");
 }
 
+// Auf dem iPad (und in der installierten Web-App) laesst ein blosses blur()
+// die Bildschirmtastatur oft stehen. Kurz schreibgeschuetzt und explizit
+// unfokussiert ist der Weg, der sie zuverlaessig schliesst.
+function tastaturSchliessen(feld){
+  if(!feld) return;
+  const warReadonly = feld.readOnly;
+  feld.readOnly = true;
+  feld.blur();
+  if(!warReadonly) setTimeout(() => { feld.readOnly = false; }, 160);
+}
+
 // Ein Land aus der Trefferliste uebernehmen. Im Feld steht danach der
 // Anzeigename, gerechnet wird mit dem stabilen deutschen Namen.
 function waehlen(land){
   gewaehltesLand = land;
   const feld = feldEl();
-  if(feld){
-    feld.value = anzeigeName(land);
-    // Tastatur nach der Auswahl schliessen. Auf dem iPad stand sie sonst
-    // genau ueber der Kugel und dem Ergebnis.
-    feld.blur();
-  }
+  if(feld) feld.value = anzeigeName(land);
+  tastaturSchliessen(feld);
   listeSchliessen();
   suchen(land);
 }
@@ -255,11 +262,12 @@ async function init(){
   if(box && !box.dataset.issLaeuft){
     box.dataset.issLaeuft = "1";
     // pointerdown statt click: das laeuft vor dem blur des Feldes, sonst
-    // waere die Liste beim Antippen schon eingeklappt.
+    // waere die Liste beim Antippen schon eingeklappt. Bewusst KEIN
+    // preventDefault: so darf das Feld von selbst den Fokus verlieren, was
+    // iOS als Signal zum Einklappen der Tastatur nimmt.
     box.addEventListener("pointerdown", (e) => {
       const item = e.target.closest(".iss-item");
       if(!item) return;
-      e.preventDefault();
       const land = laender?.find(l => l.name === item.dataset.name);
       if(land) waehlen(land);
     });
