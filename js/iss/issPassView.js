@@ -93,7 +93,12 @@ function listeZeichnen(begriff){
 function waehlen(land){
   gewaehltesLand = land;
   const feld = feldEl();
-  if(feld) feld.value = anzeigeName(land);
+  if(feld){
+    feld.value = anzeigeName(land);
+    // Tastatur nach der Auswahl schliessen. Auf dem iPad stand sie sonst
+    // genau ueber der Kugel und dem Ergebnis.
+    feld.blur();
+  }
   listeSchliessen();
   suchen(land);
 }
