@@ -240,6 +240,11 @@ export async function loadCountries(){
 
         out.push({
           name,
+          // Je Sprache ein eigener Anzeigename. "name" ist immer deutsch,
+          // damit intern und in Logs eindeutig derselbe Name steht.
+          nameDe: f.properties?.NAME_DE || name,
+          nameEn: f.properties?.NAME_EN || name,
+          nameEs: f.properties?.NAME_ES || name,
           namen: [...namen],
           iso2: f.properties?.ISO_A2 || f.properties?.ISO_A2_EH || "",
           bbox: box,

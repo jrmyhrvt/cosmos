@@ -75,6 +75,19 @@
       <div class="detail-page" id="history-detail"></div>
     </section>
 
+    <section class="view" id="isspass">
+      <div id="isspass-main">
+        <div class="section-head">
+          <div><div class="eyebrow" style="margin-bottom:9px" data-i18n="sec_iss_eyebrow">Fliegt die ISS über dieses Land?</div><h1 data-i18n="sec_iss_title">ISS-Überflüge</h1></div>
+        </div>
+        <div class="iss-search-box">
+          <input type="text" class="search-input" id="issCountrySearch" data-i18n-placeholder="iss_search" placeholder="Land suchen..." autocomplete="off" />
+        </div>
+        <div class="iss-country-list" id="issCountryList"></div>
+        <div class="iss-result" id="issResult"></div>
+      </div>
+    </section>
+
     <section class="view" id="glostar">
       <div id="glostar-main">
         <div class="search-sticky">
@@ -107,6 +120,10 @@
     <button class="tab" data-tab="history">
       <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v4.5H7.5"/><path d="M12 7.5v5l3.2 2"/></svg>
       <span data-i18n="history">Verlauf</span>
+    </button>
+    <button class="tab" data-tab="isspass">
+      <svg viewBox="0 0 24 24"><path d="M12 2c3 3 4.5 6.5 4.5 10S15 19 12 22c-3-3-4.5-6.5-4.5-10S9 5 12 2z"/><circle cx="12" cy="11" r="2.2"/></svg>
+      <span data-i18n="sec_iss_title">ISS-Überflüge</span>
     </button>
     <button class="tab" data-tab="glostar">
       <svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
