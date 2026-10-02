@@ -1,6 +1,6 @@
 import { EVENTS, getEventCategory, updateSyncInfo } from "../api.js";
 import { glostarLookupLabel, jumpToGloStar } from "../glostar/glostar.js";
-import { formatIssLat, formatIssLon, mountGlobe, pruneGlobes, updateIssReadouts } from "../iss/issManager.js";
+import { formatIssLat, formatIssLon, globeZoomRaus, globeZoomReset, mountGlobe, pruneGlobes, updateIssReadouts } from "../iss/issManager.js";
 import { renderIssPass } from "../iss/issPassView.js";
 import { currentLang } from "../main.js";
 import { deliverEventIcs, googleCalendarUrl } from "./calendarExport.js";
@@ -263,6 +263,17 @@ export function openDetail(eventId, viewPrefix){
       <div class="globe-container">
         <canvas id="globeCanvasDetail" width="400" height="320"></canvas>
         <div class="globe-status" id="globeIssStatus"><strong>ISS</strong> -- / --</div>
+        <!-- Zoom-Knoepfe rechts oben. Das Canvas liegt absolut ueber dem
+             Container und faengt sonst jeden Klick ab, deshalb braucht der
+             Block einen z-index und einen eigenen pointer-events-Wert. -->
+        <div class="globe-zoom">
+          <button type="button" class="globe-zoom-btn" id="globeZoomIn"
+            aria-label="${t.globe_zoom_in}">+</button>
+          <button type="button" class="globe-zoom-btn" id="globeZoomOut"
+            aria-label="${t.globe_zoom_out}">&minus;</button>
+          <button type="button" class="globe-zoom-btn" id="globeZoomReset"
+            aria-label="${t.globe_zoom_reset}">&#8634;</button>
+        </div>
         <div class="globe-hint" id="globeZoomHint">${t.globe_zoom_hint}</div>
       </div>
       <div class="eyebrow">${eventKind}</div>
@@ -272,7 +283,13 @@ export function openDetail(eventId, viewPrefix){
            will wissen, ob sie ueber das eigene Land kommt. Zwei Zeilen
            Ergebnis, mehr braucht es dafuer nicht. -->
       <div class="iss-block">
-        <select class="iss-select" id="issCountrySelect"></select>
+        <div class="iss-select-row">
+          <select class="iss-select" id="issCountrySelect"></select>
+          <!-- Leeres Land wieder abwaehlen: loest Auswahl, Ergebnis und die
+               rote Umrandung auf der Kugel in einem Schritt. -->
+          <button type="button" class="iss-clear" id="issCountryClear"
+            aria-label="${t.iss_clear}" hidden>&times;</button>
+        </div>
         <div class="iss-result" id="issResult"></div>
       </div>
 
@@ -289,6 +306,12 @@ export function openDetail(eventId, viewPrefix){
     // Etwas kleiner als die volle Hoehe: am Kugelrand schwebt die Station
     // 6,6 % ausserhalb und waere sonst vom Rahmen abgeschnitten.
     mountGlobe("globeCanvasDetail", "globeIssStatus", {radiusFactor: 0.45, autoRotate: true});
+    // Die Zoom-Knoepfe arbeiten direkt auf dem Globus-Zustand. addEventListener
+    // statt onclick, damit die Funktionen nicht auch noch ans Fenster gehaengt
+    // werden muessen.
+    document.getElementById("globeZoomIn")?.addEventListener("click", () => globeZoomRaus("globeCanvasDetail", 1.6));
+    document.getElementById("globeZoomOut")?.addEventListener("click", () => globeZoomRaus("globeCanvasDetail", 1 / 1.6));
+    document.getElementById("globeZoomReset")?.addEventListener("click", () => globeZoomReset("globeCanvasDetail"));
     updateIssReadouts();
     renderIssPass();
     return;

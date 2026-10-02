@@ -145,7 +145,16 @@
   /* Unter der Kugel: Auswahlfeld und zwei Ergebniszeilen. Bewusst schlicht,
      der Platz zwischen Kugel und Messwerten ist knapp. */
   .iss-block{margin:0 0 16px}
-  .iss-select{width:100%;padding:12px 14px;border-radius:14px;border:1px solid var(--border);
+  /* Auswahlfeld und Kreuz in einer Zeile. Das Kreuz sitzt daneben und nicht
+     im Feld, weil das Feld rechts seinen eigenen Chevron hat. */
+  .iss-select-row{display:flex;align-items:stretch;gap:8px}
+  .iss-clear{flex:0 0 auto;width:44px;border-radius:14px;border:1px solid var(--border);
+    background:rgba(255,255,255,.05);color:#fff;font-size:24px;font-weight:400;line-height:1;
+    cursor:pointer;display:grid;place-items:center;padding:0}
+  .iss-clear:hover{background:rgba(255,255,255,.12)}
+  .iss-clear:active{transform:scale(.94)}
+  .iss-clear[hidden]{display:none}
+  .iss-select{flex:1 1 auto;min-width:0;padding:12px 14px;border-radius:14px;border:1px solid var(--border);
     background:rgba(255,255,255,.05);color:#fff;font-size:15px;font-weight:600;
     outline:none;appearance:none;-webkit-appearance:none;cursor:pointer;
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
@@ -173,6 +182,15 @@
   .globe-status{position:absolute;left:14px;bottom:12px;padding:5px 9px;border:1px solid var(--border);border-radius:999px;background:rgba(0,0,0,.72);font-size:10px;color:var(--muted);backdrop-filter:blur(10px)}
   .globe-status strong{color:#fff}
   .globe-hint{position:absolute;right:14px;bottom:12px;padding:5px 9px;border:1px solid var(--border);border-radius:999px;background:rgba(0,0,0,.72);font-size:10px;color:var(--muted);backdrop-filter:blur(10px);pointer-events:none}
+  /* Zoom-Knoepfe rechts oben, im Abstand zum unteren Hinweis. Der Block
+     braucht z-index 3: .globe-container canvas liegt absolut mit inset:0
+     ueber allem und wuerde die Klicks sonst abfangen. */
+  .globe-zoom{position:absolute;right:12px;top:12px;z-index:3;display:flex;flex-direction:column;gap:6px}
+  .globe-zoom-btn{width:34px;height:34px;border-radius:11px;border:1px solid var(--border);
+    background:rgba(0,0,0,.72);backdrop-filter:blur(10px);color:#fff;font-size:17px;
+    font-weight:600;line-height:1;cursor:pointer;display:grid;place-items:center;padding:0}
+  .globe-zoom-btn:hover{background:rgba(40,42,54,.9)}
+  .globe-zoom-btn:active{transform:scale(.92)}
   .glostar-detail-copy{color:var(--muted);line-height:1.65;font-size:14px}
 
   /* --- Kalender ----------------------------------------------------------------

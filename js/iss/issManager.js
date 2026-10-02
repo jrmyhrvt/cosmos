@@ -72,6 +72,33 @@ export const globes = new Map();
 // Bodenspur verwendet, der Ankerpunkt ist die aktuelle echte Position.
 export const ISS_ORBIT = {inclination: 51.64, altitudeKm: 420, mu: 398600.4418, earthRadiusKm: 6371};
 
+// Das gerade im Auswahlfeld gewaehlte Land. Der Zustand liegt hier und nicht
+// im DOM: die ISS-Detailseite wird bei jedem Sprachwechsel und jedem Zurueck
+// komplett neu aufgebaut. Waere die Auswahl an das Canvas-Element gebunden,
+// waere sie nach dem naechsten Aufbau weg, obwohl sie im Auswahlfeld noch
+// dasteht.
+let globeLand = null;
+
+export function globeAktuellesLand(){
+  return globeLand;
+}
+
+// Waehlt das Land, das auf der Kugel rot umrandet wird, und dreht den Globus
+// darauf. Ohne das Drehen waere die Umrandung bei einem Land auf der
+// Rueckseite unsichtbar und man haelt die Funktion fuer kaputt.
+export function setGlobeLand(land){
+  globeLand = land || null;
+  for(const instance of globes.values()){
+    if(!instance.showIss) continue;
+    instance.landZentrum = !!globeLand;
+    instance.userMoved = false;
+    if(globeLand && globeLand.mitte){
+      instance.viewLon = globeLand.mitte.lon;
+      instance.viewLat = globeLand.mitte.lat;
+    }
+  }
+}
+
 export async function loadGlobeWorld(){
   if(globeWorldData) return globeWorldData;
   if(!globeWorldPromise){
@@ -208,6 +235,26 @@ export function drawGlobeFrame(instance, world){
   ctx.fill();
   ctx.stroke();
 
+  // Das im Auswahlfeld gewaehlte Land rot umranden. Es wird innerhalb desselben
+  // Kugel-Clips gezeichnet, dadurch schneidet der Clip die Rueckseite von
+  // selbst weg - man sieht also nur die Haelfte des Landes, die gerade
+  // wirklich vorne liegt, statt einer flach ueber die Kugel gelegten Linie.
+  if(globeLand?.polys?.length){
+    for(const ring of globeLand.polys){
+      ctx.beginPath();
+      for(let i = 0; i < ring.length; i++){
+        const pt = projection(ring[i]);
+        if(!pt){ ctx.moveTo(0, 0); continue; }
+        if(i === 0) ctx.moveTo(pt[0], pt[1]);
+        else ctx.lineTo(pt[0], pt[1]);
+      }
+      ctx.strokeStyle = "rgba(255,59,48,.95)";
+      ctx.lineWidth = instance.px(1.8);
+      ctx.lineJoin = "round";
+      ctx.stroke();
+    }
+  }
+
   ctx.restore();
 
   // ISS-Bahn. Sie liegt nicht auf der Landflaeche, sondern schwebt als Ring
@@ -257,11 +304,14 @@ export function drawGlobeFrame(instance, world){
 
     const pastTrack = issGroundTrack(currentIssLat, currentIssLon, -1, 0, SAMPLES);
     const nextTrack = issGroundTrack(currentIssLat, currentIssLon, 0, 1, SAMPLES);
-    // Durchgezogen: die zuletzt geflogene Umrundung.
-    strokeTrack(pastTrack, "rgba(255,255,255,.5)", "rgba(255,255,255,.12)", []);
-    // Gestrichelt: derselbe Kreislauf eine Umrundung weiter - dort ist die
-    // ISS in etwa 92 Minuten. Beide Spuren liegen rund 23 Grad versetzt
-    // zueinander, weil die Erde in dieser Zeit weiterdreht.
+    // Rot durchgezogen: die zuletzt geflogene Umrundung, also die Spur, die
+    // die ISS hinterlaesst. Der rote Punkt der Station sitzt auf dieser Linie
+    // - beides ist dieselbe Sache, die gerade passiert, deshalb dieselbe
+    // Farbe. Weiss bleibt fuer die Zukunft reserviert.
+    strokeTrack(pastTrack, "rgba(255,59,48,.85)", "rgba(255,59,48,.2)", []);
+    // Gestrichelt und weiss: derselbe Kreislauf eine Umrundung weiter - dort
+    // ist die ISS in etwa 92 Minuten. Beide Spuren liegen rund 23 Grad
+    // versetzt zueinander, weil die Erde in dieser Zeit weiterdreht.
     strokeTrack(nextTrack, "rgba(255,255,255,.9)", "rgba(255,255,255,.22)", [instance.px(4), instance.px(4)]);
 
     // Station und Bahn liegen beide auf dem schwebenden Ring, nicht auf der
@@ -552,10 +602,16 @@ export function globeLoop(){
       const hasIss = instance.showIss
         && Number.isFinite(currentIssLon) && Number.isFinite(currentIssLat);
       if(hasIss){
-        // Solange der Nutzer die Kugel nicht selbst gedreht hat, schaut sie
-        // auf die Station. Danach bleibt der Blick genau dort stehen, wo er
-        // hingesdreht wurde - sonst kaeme das Drehen nicht ueberhaupt an.
-        if(!instance.userMoved){
+        // Prioritaet hat das gewaehlte Land: der Globus schaut darauf, damit
+        // die rote Umrandung sichtbar ist. Erst wenn kein Land gewaehlt ist,
+        // folgt der Blick der Station.
+        if(instance.landZentrum && globeLand?.mitte && !instance.userMoved){
+          instance.viewLon = globeLand.mitte.lon;
+          instance.viewLat = globeLand.mitte.lat;
+        } else if(!instance.userMoved){
+          // Solange der Nutzer die Kugel nicht selbst gedreht hat, schaut sie
+          // auf die Station. Danach bleibt der Blick genau dort stehen, wo er
+          // hingesdreht wurde - sonst kaeme das Drehen nicht ueberhaupt an.
           instance.viewLon = currentIssLon;
           instance.viewLat = currentIssLat;
         }
@@ -691,6 +747,10 @@ export function mountGlobe(canvasId, statusId, options = {}){
   const onMove = e => {
     if(!instance.dragging) return;
     if(e.touches && e.touches.length > 1) return;      // Pinch laeuft
+    // Selbst drehen heisst: die automatische Zentrierung auf das gewaehlte
+    // Land endet. Sonst schaukte die Kugel nach dem Loslassen sofort wieder
+    // zurueck und der Griff haette keine Wirkung.
+    instance.landZentrum = false;
     const punkt = e.touches?.[0] || e;
     const x = punkt.clientX ?? 0;
     const y = punkt.clientY ?? 0;
@@ -745,7 +805,7 @@ export function mountGlobe(canvasId, statusId, options = {}){
 
   // Doppelklick setzt den Zoom zurueck - der Weg zurueck muss immer leicht
   // zu finden sein, sonst ist man bei hohem Zoom eingeschlossen.
-  const onDblClick = () => { instance.zoom = 1; };
+  const onDblClick = () => { instance.zoom = 1; instance.userMoved = false; instance.landZentrum = false; };
   canvas.addEventListener("dblclick", onDblClick);
 
   canvas.onmousedown = onDown;
@@ -767,6 +827,31 @@ export function mountGlobe(canvasId, statusId, options = {}){
     });
 
   if(!globeAnimationId) globeAnimationId = requestAnimationFrame(globeLoop);
+}
+
+// Zoom von aussen, also ueber die Buttons unter der Kugel. Zugriff ueber die
+// Instanz, damit keine zusaetzliche Kopie des Zoomwerts im DOM entsteht -
+// die Schleife liest ohnehin instance.zoom. Die Klemmung 1 bis 14 ist dieselbe
+// wie beim Mausrad, sonst wuerden die Buttons die Kugel weiter hineinzoomen
+// koennen als das Rad.
+export function globeZoomRaus(canvasId, faktor = 1.35){
+  const instance = globes.get(canvasId);
+  if(!instance) return;
+  instance.zoom = Math.max(1, Math.min(14, instance.zoom * faktor));
+  // Mit hineinzoomen ist die automatische Zentrierung vorbei, sonst sprengt der
+  // naechste Frame den Blick wieder auf das ganze Land zurueck.
+  if(faktor > 1) instance.userMoved = true;
+}
+
+// Zurueck auf die ganze Kugel und wieder auf den Blickpunkt, den die Kugel
+// sonst automatisch waehlt. Ohne userMoved = false bliebe die Kugel auf der
+// Stelle stehen, auf der der Reset gerade ausgefuehrt wurde.
+export function globeZoomReset(canvasId){
+  const instance = globes.get(canvasId);
+  if(!instance) return;
+  instance.zoom = 1;
+  instance.userMoved = false;
+  instance.landZentrum = false;
 }
 
 // Beim Wechsel der Ansicht wird ein nicht mehr sichtbarer Globus abgeraeumt.

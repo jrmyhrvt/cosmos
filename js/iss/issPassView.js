@@ -16,6 +16,7 @@
    -------------------------------------------------------------------------- */
 
 import { loadCountries, ueberflugSuchen } from "./issPass.js";
+import { setGlobeLand } from "./issManager.js";
 import { TRANSLATIONS } from "../translations.js";
 import { currentLang } from "../main.js";
 import { escapeHtml, fmtDate, fmtClock, tzOffsetHours } from "../events/eventManager.js";
@@ -135,11 +136,37 @@ function statusZeichnen(text){
   if(box) box.innerHTML = `<div class="iss-card"><div class="sub">${text}</div></div>`;
 }
 
+// Das Kreuz neben dem Auswahlfeld ist nur sichtbar, wenn wirklich ein Land
+// gewaehlt ist. Es steht als Geschwister neben dem Feld statt darin: im Feld
+// wuerde es mit dem Chevron kollidieren, der schon am rechten Rand sitzt.
+function kreuzZeichnen(){
+  const knopf = document.getElementById("issCountryClear");
+  if(knopf) knopf.hidden = !gewaehltesLand;
+}
+
+// Auswahl und Ergebnis komplett zuruecksetzen. Das Kreuz ruft das auf, das
+// leere Auswahlfeld ebenso - dadurch bleibt das Umranden der Kugel nicht
+// zurueck, wenn niemand mehr ein Land gewaehlt hat.
+function auswahlZuruecksetzen(){
+  gewaehltesLand = null;
+  letzteAntwort = null;
+  laufendeSuche++;              // eine noch laufende Rechnung nicht mehr zeigen
+  const feld = document.getElementById("issCountrySelect");
+  if(feld) feld.value = "";
+  ergebnisZeichnen();
+  kreuzZeichnen();
+  setGlobeLand(null);
+}
+
 // ------------------------------------------------------------------ Suche
 
 async function suchen(land){
   if(!land) return;
   gewaehltesLand = land;
+  // Das Land sofort auf der Kugel umranden, noch bevor die Rechnung fertig ist.
+  // Wer hier gerade wartet, will sehen wo das Land ueberhaupt liegt.
+  setGlobeLand(land);
+  kreuzZeichnen();
   statusZeichnen(TRANSLATIONS[currentLang].iss_calculating);
 
   const nr = ++laufendeSuche;
@@ -170,13 +197,16 @@ async function init(){
     feld.addEventListener("change", () => {
       const land = laender?.find(l => l.name === feld.value);
       if(land) suchen(land);
-      else{
-        // Zurueck auf "Land auswaehlen": keine Auswahl, kein Ergebnis.
-        gewaehltesLand = null;
-        letzteAntwort = null;
-        ergebnisZeichnen();
-      }
+      // Zurueck auf "Land auswaehlen": keine Auswahl, kein Ergebnis, und die
+      // Kugel zeigt keine rote Umrandung mehr.
+      else auswahlZuruecksetzen();
     });
+  }
+
+  const knopf = document.getElementById("issCountryClear");
+  if(knopf && !knopf.dataset.issLaeuft){
+    knopf.dataset.issLaeuft = "1";
+    knopf.addEventListener("click", auswahlZuruecksetzen);
   }
 
   if(!laenderGeladen){
@@ -189,6 +219,11 @@ async function init(){
   }
   auswahlZeichnen();
   ergebnisZeichnen();
+  kreuzZeichnen();
+  // Nach dem Neuaufbau ist der Globus eine neue Instanz. Das gewaehlte Land
+  // lebt aber im Modulzustand weiter - ohne dieses Zuruecksetzen zeigte die
+  // Kugel beim naechsten Oeffnen wieder die Station statt des Landes.
+  if(gewaehltesLand) setGlobeLand(gewaehltesLand);
 }
 
 export function renderIssPass(){
@@ -200,4 +235,5 @@ export function issPassSprache(){
   const feld = document.getElementById("issCountrySelect");
   if(feld) auswahlZeichnen();
   ergebnisZeichnen();
+  kreuzZeichnen();
 }
