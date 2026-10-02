@@ -464,28 +464,51 @@ export const ISS_TEILE = (() => {
   const solarRahmen = [70, 92, 140];
   const radiator = [236, 240, 245];
   const dunkel = [120, 128, 138];
+  // Goldene Isolierdecke. Auf der echten Station ist ein guter Teil der
+  // Module aussen mit Multilayer-Isolierung umschlagen, die im Sonnenlicht
+  // goldbraun schimmert. Das gibt dem sonst einfarbigen Modell die typische
+  // Faerbung echter Aufnahmen.
+  const mli = [191, 150, 62];
+  const mliDunkel = [150, 112, 44];
 
-  // Integrierter Truss: das lange Gitter in der Mitte
-  quader(-4, -42, -1.6, 8, 84, 3.2, grauTruss);
+  // Integrierter Truss: das Gitter in der Mitte. Statt eines massiven Balkens
+  // vier Laengsstreben plus Querstreben - so sieht man zwischen den Streben
+  // durch, wie es auf dem echten Gitterwerk der Fall ist.
+  for(const e of [-1.4, -0.5, 0.5, 1.4]){
+    quader(e, -42, -1.5, 0.55, 84, 3, grauTruss);
+  }
+  for(let y = -42; y <= 42; y += 6){
+    quader(-1.6, y, -1.6, 3.2, 0.7, 3.2, grauTruss);
+  }
   // Module in Flugrichtung, darunter der Untersturz
   rohr(-15, 15, 2.2, weiss);
-  rohr(-20, -15, 1.7, weiss, 10);
+  // Russland an einem Ende, Amerika am anderen. Die Segmente sind nicht alle
+  // weiss - die aelteren tragen die goldene Isolierung.
+  rohr(-20, -15, 1.7, mli, 10);
   rohr(15, 20, 1.7, weiss, 10);
-  // Russland an einem Ende, Amerika am anderen
-  rohr(-25, -20, 1.6, dunkel, 10);
+  rohr(-25, -20, 1.6, mliDunkel, 10);
   rohr(20, 25, 1.6, dunkel, 10);
-  // Kana­len und Antennen
+  // Kanaelen und Antennen
   quader(-1.6, 0, 3.2, 3.2, 4, 5, weiss);
   quader(-.6, -2, 8.2, 1.2, 4, 1.2, dunkel);
-  // Vier Solarflügel: je zwei Panels pro Seite
+  // Vier Solarfluegel: je zwei Panels pro Seite. Jedes Panel ist aus zwei
+  // Haelften zusammengesetzt, die einen Hauch unterschiedlich blau sind - so
+  // bekommt die Flaeche eine Gliederung, ohne dass dafuer Geometrie noetig ist.
   for(const vorzeichen of [-1, 1]){
     for(const seite of [-1, 1]){
       for(const panel of [0, 1]){
         const y0 = vorzeichen * (22 + panel * 14);
-        quader(seite * 3, y0, -0.4, seite * 30, 13, 0.8, solar);
+        for(const haelfte of [0, 1]){
+          const ya = y0 + haelfte * 6;
+          const nb = haelfte ? 24 : 40;
+          quader(seite * 3, ya, -0.4, seite * 30, nb, 0.8, solar);
+        }
         // Rahmenkante, damit die Flaeche als Solarpanel erkennbar bleibt
         quader(seite * 3, y0, -0.5, seite * 30, 1, 0.9, solarRahmen);
         quader(seite * 3, y0 + 12, -0.5, seite * 30, 1, 0.9, solarRahmen);
+        // Schattenkante auf der Unterseite: die Panels stehen etwas ueber
+        // dem Truss und werfen daher einen schmalen Schatten.
+        quader(seite * 3.4, y0 + 1, -1.4, seite * 0.6, 11, 0.4, solarRahmen);
       }
     }
   }
@@ -493,6 +516,8 @@ export const ISS_TEILE = (() => {
   for(const vorzeichen of [-1, 1]){
     quader(-3, vorzeichen * 50, 0.4, 6, 9, 0.5, radiator);
     quader(-0.3, vorzeichen * 49.5, 0.4, 0.6, 8, 4, radiator);
+    // Rohrleitung, die vom Kuehler in den Truss laeuft
+    quader(-0.5, vorzeichen * 44, -1, 1, 6, 1, mliDunkel);
   }
   return teile;
 })();
@@ -511,7 +536,15 @@ export function drawIssModel(ctx, instance, projection, center, basis, spin, alp
   // gross wie ein Objekt, dem man sich naehern wuerde.
   const M = ISS_MODELL_MASSSTAB;
   const flaechen = [];
-  const licht = [-0.4, 0.55, 0.73];
+  // Sonne von schräg oben links, dazu das Licht, das von der Erde unter der
+  // Station reflektiert wird. Die Erde ist riesig und sehr hell - ohne diesen
+  // zweiten Anteil bleiben die Unterseiten schwarz, obwohl sie in Wirklichkeit
+  // blau aufleuchten.
+  const licht = [-0.42, 0.5, 0.76];
+  const erdLicht = [0.52, 0.64, 0.86];
+  // Halbvektor fuer den Glanzpunkt. Die Kamera blickt von aussen auf die
+  // Station, ihre Richtung ist also die Radiale hoch - dieselbe, auf der die
+  // Station schwebt.
   for(const teil of ISS_TEILE){
     const c = Math.cos(spin), sn = Math.sin(spin);
     const ecken = teil.punkte.map(p => {
@@ -542,9 +575,28 @@ export function drawIssModel(ctx, instance, projection, center, basis, spin, alp
     let n = [a[1]*b[2] - a[2]*b[1], a[2]*b[0] - a[0]*b[2], a[0]*b[1] - a[1]*b[0]];
     const laengeN = Math.hypot(n[0], n[1], n[2]) || 1;
     n = [n[0]/laengeN, n[1]/laengeN, n[2]/laengeN];
-    const helligkeit = Math.max(0, n[0]*licht[0] + n[1]*licht[1] + n[2]*licht[2]);
+
+    // Rueckseiten weglassen. Das ist der groesste Gewinn an Schaerfe: ohne
+    // diese Kuerzung liegen die hinteren Flaechen zwischen den vorderen und
+    // faerben sie mit einem falschen Ton ein. Der Normalenvektor zeigt nach
+    // aussen, die Kamera steht entlang hoch - ein Punkt ist also sichtbar,
+    // wenn die Normale zur Kamera zeigt.
+    const zurKamera = n[0]*hoch[0] + n[1]*hoch[1] + n[2]*hoch[2];
+    if(zurKamera <= 0.02) continue;
+
+    const sonne = Math.max(0, n[0]*licht[0] + n[1]*licht[1] + n[2]*licht[2]);
+    const erde = Math.max(0, -(n[0]*hoch[0] + n[1]*hoch[1] + n[2]*hoch[2]));
+    // Halbvektor Sonne/Blickrichtung fuer den Glanzpunkt
+    const hx = licht[0] + hoch[0], hy = licht[1] + hoch[1], hz = licht[2] + hoch[2];
+    const hl = Math.hypot(hx, hy, hz) || 1;
+    const glanzFleck = Math.pow(Math.max(0, (n[0]*hx + n[1]*hy + n[2]*hz) / hl), 26);
+    // Zusatzlicht am Rand: nimmt den Flaechen die harte Trennlinie zur
+    // dahinterliegenden Flaeche und laesst die Station plastisch wirken.
+    const rand = Math.pow(1 - zurKamera, 3) * 0.18;
+
     const tiefe = ecken.reduce((sum, e) => sum + e[2]*hoch[0] + e[3]*hoch[1] + e[4]*hoch[2], 0) / 4;
-    flaechen.push({ecken, farbe: teil.farbe, ton: 0.4 + 0.6*helligkeit, tiefe});
+    flaechen.push({ecken, farbe: teil.farbe, ton: 0.2 + 0.78*sonne + 0.3*erde,
+                   erde, glanz: glanzFleck, rand, tiefe});
   }
   // Von hinten nach vorn zeichnen, sonst liegen die nahen Flaechen drunter
   flaechen.sort((a, b) => a.tiefe - b.tiefe);
@@ -554,10 +606,22 @@ export function drawIssModel(ctx, instance, projection, center, basis, spin, alp
     for(let i = 1; i < f.ecken.length; i++) ctx.lineTo(f.ecken[i][0], f.ecken[i][1]);
     ctx.closePath();
     const [r, g, b] = f.farbe;
-    ctx.fillStyle = `rgba(${Math.round(Math.min(255, r*f.ton))},${Math.round(Math.min(255, g*f.ton))},${Math.round(Math.min(255, b*f.ton))},${alpha})`;
+    // Grundton aus Sonne und Erdschein, der Erdschein leicht blaustichig.
+    let R = r * (f.ton - f.erde * 0.22) + f.erde * 34;
+    let G = g * (f.ton - f.erde * 0.12) + f.erde * 44;
+    let B = b * (f.ton + f.erde * 0.10) + f.erde * 62;
+    // Glanzpunkt und Randlicht kommen additiv dazu.
+    R += 255 * f.glanz * 0.5 + 255 * f.rand * 0.35;
+    G += 255 * f.glanz * 0.5 + 255 * f.rand * 0.35;
+    B += 255 * f.glanz * 0.5 + 255 * f.rand * 0.4;
+    ctx.fillStyle = `rgba(${Math.round(Math.max(0, Math.min(255, R)))},${Math.round(Math.max(0, Math.min(255, G)))},${Math.round(Math.max(0, Math.min(255, B)))},${alpha})`;
     ctx.fill();
-    ctx.lineWidth = instance.px(0.5);
-    ctx.strokeStyle = `rgba(0,0,0,${0.25 * alpha})`;
+    // Eine feine, dunkle Kante an den Silhouetten macht die Station auch auf
+    // hellem Grund klar erkennbar. Innenkanten bleiben weg, sonst zerfaellt das
+    // Gitterwerk in einem Gitter aus Linien.
+    ctx.lineWidth = instance.px(0.6);
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = `rgba(0,0,0,${0.34 * alpha})`;
     ctx.stroke();
   }
 }
