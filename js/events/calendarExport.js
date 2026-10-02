@@ -123,41 +123,53 @@ function icsDateiname(ev, titel){
   return `COSMOS-${tag}-${titel}`.replace(/[\\/:*?"<>|]/g, "-").slice(0, 80) + ".ics";
 }
 
+// Der MIME-Typ ist auf Apple-Geraeten entscheidend und darf KEIN charset
+// tragen. Mit "text/calendar;charset=utf-8" (oder einem Byte-Order-Mark am
+// Dateianfang) erkennt iOS die Datei nicht als Kalendereintrag: Das
+// Teilen-Fenster bietet "Kalender" gar nicht erst an, und aus Safari heraus
+// landet sie nur noch als Datei im Ordner Downloads. Genau das war das
+// gemeldete Verhalten.
+const ICS_MIME = "text/calendar";
+
 // Reihenfolge ist hier wichtig und nicht willkuerlich:
 //
-//  1. Teilen (navigator.share) - der einzige Weg, der auf iPhone und iPad
-//     wirklich funktioniert. Dort heisst die Datei "share", und der Kalender
-//     uebernimmt sie daraus mit samt Erinnerung.
-//  2. Normales Download - Windows, Android, Mac-Desktop.
-//
-// Safari zeigt bei einer Blob-URL sonst nur eine Vorschau, und "Speichern"
-// darin uebernimmt nichts. Genau das war der gemeldete Fehler: Die Datei war
-// in Ordnung, nur der Weg dahin fuehrte ins Leere.
+//  1. Teilen (navigator.share) - auf iPhone und iPad der einzige Weg, der
+//     sofort eine Systemansicht oeffnet; dort auf "Kalender" tippen.
+//  2. Normales Download - Windows, Android, Mac-Desktop. Auf iOS laesst sich
+//     die geladene Datei danach ueber die Downloads-Liste in Kalender oeffnen.
 export async function deliverEventIcs(ev, titel, beschreibung){
   const inhalt = buildEventIcs(ev, titel, beschreibung);
   if(!inhalt) return { ok: false, grund: "kein Datum" };
 
-  const datei = new File([inhalt], icsDateiname(ev, titel), { type: "text/calendar;charset=utf-8" });
+  const name = icsDateiname(ev, titel);
+  const datei = new File([inhalt], name, { type: ICS_MIME });
 
-  if(navigator.share && (!navigator.canShare || navigator.canShare({ files: [datei] }))){
+  // canShare fehlt in manchen Browsern. Wenn es da ist, wirklich pruefen,
+  // sonst wirft share() bei nicht teilbaren Dateien eine Ausnahme.
+  const teilenMoeglich = navigator.share
+    && (!navigator.canShare || navigator.canShare({ files: [datei] }));
+  if(teilenMoeglich){
     try {
       await navigator.share({ files: [datei], title: titel });
       return { ok: true, weg: "teilen" };
     } catch(err){
       // Abgebrochen heisst "der Nutzer wollte nicht" - das ist kein Fehler.
       if(err && err.name === "AbortError") return { ok: false, grund: "abgebrochen" };
+      // Anderer Fehler: den Download unten versuchen.
     }
   }
 
-  const blob = new Blob(["\ufeff" + inhalt], { type: "text/calendar;charset=utf-8" });
+  // Bewusst ohne BOM und ohne charset - siehe oben.
+  const blob = new Blob([inhalt], { type: ICS_MIME });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = icsDateiname(ev, titel);
+  a.download = name;
   document.body.appendChild(a);
   a.click();
   a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  // Erst spaeter freigeben: iOS bricht den Download sonst still ab.
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
   return { ok: true, weg: "download" };
 }
 
