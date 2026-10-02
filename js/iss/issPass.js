@@ -176,7 +176,10 @@ export function naechsteAnnaeherung(land, rec, opt = {}){
   }
   return {
     abstandKm: fein.abstandKm,
-    zeitpunkt: Date.now() + fein.minuten * 60000,
+    // Dieselbe Umrechnung wie in ueberflugAusgeben(): "minuten" heisst
+    // "Minuten seit der TLE-Epoche". Ohne Abzug der Epoche landet der
+    // Zeitpunkt um die Alterszeit der TLE in der Zukunft.
+    zeitpunkt: Date.now() + (fein.minuten - minutenSeitEpoche(rec)) * 60000,
     lat: fein.lat,
     lon: fein.lon
   };

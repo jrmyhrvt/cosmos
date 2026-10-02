@@ -857,7 +857,17 @@ function ueberflugAusgeben(startMin, endeMin, rec, beobachter){
     // Fehler, sondern heisst: dieser Ueberflug streift das Land nur weit
     // ausserhalb seiner Mitte und ist von dort aus nicht sichtbar.
     beobachter,
-    zeitpunkt: Date.now() + startMin * SEKUNDEN_PRO_MINUTE * 1000,
+    // Achtung: startMin ist "Minuten seit der TLE-Epoche", NICHT "Minuten ab
+    // jetzt". Die Epoche ist rund einen Tag alt. Mit "Date.now() + startMin"
+    // wurde die angezeigte Uhrzeit um genau diese Alterszeit zu spaet - bei
+    // Deutschland rund 1360 Minuten, also ueber 22 Stunden. Die Rechnung war
+    // richtig, nur die Umrechnung in eine Uhrzeit nicht.
+    //
+    // minutenSeitEpoche() wird hier noch einmal mit demselben rec aufgerufen,
+    // den die Suche benutzt hat. Diese Differenz ist exakt der Abstand
+    // zwischen jetzt und dem gefundenen Ueberflug, unabhaengig davon, wie alt
+    // die TLE ist.
+    zeitpunkt: Date.now() + (startMin - minutenSeitEpoche(rec)) * SEKUNDEN_PRO_MINUTE * 1000,
     punkte
   };
 }
