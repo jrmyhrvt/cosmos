@@ -571,11 +571,6 @@ function lokalProjektion(land){
 function laendGeometrieKm(land){
   const lon0 = land.mitte.lon, lat0 = land.mitte.lat;
   const proj = lokalProjektion(land);
-  const kx = KM_PRO_GRAD * Math.cos(lat0 * Math.PI / 180);
-  const unproj = (x, y) => ({
-    lat: lat0 + y / KM_PRO_GRAD,
-    lon: ((lon0 + x / kx + 540) % 360) - 180
-  });
   const ringe = [];
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
   for(const ring of land.polys){
@@ -588,30 +583,9 @@ function laendGeometrieKm(land){
     }
     if(r.length > 2) ringe.push(r);
   }
-  return {proj, unproj, ringe, box:{minX, maxX, minY, maxY}};
+  return {proj, ringe, box:{minX, maxX, minY, maxY}};
 }
 
-// Naechster Punkt auf dem Landesrand zur Bodenspur. Der Beobachter sitzt fuer
-// grosse Laender sonst weit vom Ueberflug entfernt - Kanadas Mittelpunkt liegt
-// ueber 1000 km vom Flugweg entfernt, wodurch die Hoehe negativ wuerde. Der
-// Randpunkt ist die Stelle im Land, von der aus der Ueberflug am besten zu
-// sehen ist, und liegt immer am oder nahe der Bodenspur.
-function naechsterRandPunkt(geo, x, y){
-  let best = Infinity, bx = x, by = y;
-  for(const ring of geo.ringe){
-    for(let i = 0; i + 1 < ring.length; i++){
-      const ax = ring[i][0], ay = ring[i][1];
-      const dx = ring[i+1][0] - ax, dy = ring[i+1][1] - ay;
-      const l2 = dx * dx + dy * dy;
-      let t = l2 ? ((x - ax) * dx + (y - ay) * dy) / l2 : 0;
-      if(t < 0) t = 0; else if(t > 1) t = 1;
-      const px = ax + t * dx, py = ay + t * dy;
-      const d = Math.hypot(x - px, y - py);
-      if(d < best){ best = d; bx = px; by = py; }
-    }
-  }
-  return {x: bx, y: by, abstandKm: best};
-}
 
 // Schneiden sich zwei Strecken? Nur ja oder nein - die genaue Zeit bestimmt
 // anschliessend die Bisektion.
@@ -844,7 +818,7 @@ function grensuche(rec, land, geo, innen, beobachter, kandidat, schritt, fenster
         const gemessen = vermesseUndVerfeinere(innen, start - schritt, t + schritt, dt);
         if(!gemessen || gemessen.e <= gemessen.v) return null;
         if(gemessen.v <= von || gemessen.e >= bis) return null;
-        return ueberflugAusgeben(gemessen.v, gemessen.e, rec, beobachter, geo);
+        return ueberflugAusgeben(gemessen.v, gemessen.e, rec, beobachter);
       }
       start = null;
     }
@@ -854,20 +828,21 @@ function grensuche(rec, land, geo, innen, beobachter, kandidat, schritt, fenster
 
 // Ergebnis zusammensetzen. Die Hoehe wird feiner abgetastet, weil der
 // hoechste Punkt selten auf einem Abtastpunkt liegt.
-function ueberflugAusgeben(startMin, endeMin, rec, beobachter, geo){
+function ueberflugAusgeben(startMin, endeMin, rec, beobachter){
   const punkte = [];
   let maxHoehe = -Infinity;
-  let maxPunkt = null, maxHoehePunkt = null;
 
   const schritte = 60;
   const fein = Math.max((endeMin - startMin) / schritte, 0.0002);
   for(let m = startMin; m <= endeMin; m += fein){
     const p = positionNach(rec, m);
     if(!p) continue;
-    const [x, y] = geo.proj(p.lon, p.lat);
-    const rand = naechsterRandPunkt(geo, x, y);
-    const h = hoeheUeberHorizont(p, geo.unproj(rand.x, rand.y));
-    if(h !== null && h > maxHoehe){ maxHoehe = h; maxPunkt = rand; maxHoehePunkt = p; }
+    // Fester Beobachter, nicht pro Abtastpunkt: der Landesmittelpunkt.
+    // Ein wandernder Beobachter ergaebe bei jedem Ueberflug 90 Grad, weil
+    // die Spur am Ende genau auf dem Landesrand steht und der Beobachter
+    // dann genau unter dem Satelliten liegt.
+    const h = hoeheUeberHorizont(p, beobachter);
+    if(h !== null && h > maxHoehe) maxHoehe = h;
     if(punkte.length < 400) punkte.push([p.lat, p.lon]);
   }
   if(!Number.isFinite(maxHoehe)) maxHoehe = 0;
@@ -878,11 +853,10 @@ function ueberflugAusgeben(startMin, endeMin, rec, beobachter, geo){
     dauerSek: (endeMin - startMin) * SEKUNDEN_PRO_MINUTE,
     maxHoehe,
     sichtbar: maxHoehe > 0,
+    // Beobachter ist der Landesmittelpunkt. Ein negativer maxHoehe ist kein
+    // Fehler, sondern heisst: dieser Ueberflug streift das Land nur weit
+    // ausserhalb seiner Mitte und ist von dort aus nicht sichtbar.
     beobachter,
-    // Beobachtungsort fuer maxHoehe: der Randpunkt des Landes, der dem
-    // Bodenspur am naechsten liegt, samt seinem Ort in Grad und Entfernung.
-    maxHoeheVon: maxPunkt ? geo.unproj(maxPunkt.x, maxPunkt.y) : null,
-    maxHoeheAbstandKm: maxPunkt ? maxPunkt.abstandKm : null,
     zeitpunkt: Date.now() + startMin * SEKUNDEN_PRO_MINUTE * 1000,
     punkte
   };
