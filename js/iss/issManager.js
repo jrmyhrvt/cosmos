@@ -645,7 +645,7 @@ export function drawIssModel(ctx, instance, projection, center, basis, spin, alp
     const tiefe = ecken.reduce((sum, e) => sum + e[2]*hoch[0] + e[3]*hoch[1] + e[4]*hoch[2], 0) / 4;
     // Grundhelligkeit bewusst hoch: die Station wirkte auf dem dunklen Globus
     // sonst zu duenn. Nur die Helligkeit, nicht die Farbwerte selbst.
-    flaechen.push({ecken, farbe: teil.farbe, ton: 0.34 + 0.94*sonne + 0.42*erde,
+    flaechen.push({ecken, farbe: teil.farbe, ton: 0.42 + 1.0*sonne + 0.5*erde,
                    erde, glanz: glanzFleck, rand, tiefe});
   }
   // Von hinten nach vorn zeichnen, sonst liegen die nahen Flaechen drunter
@@ -660,13 +660,21 @@ export function drawIssModel(ctx, instance, projection, center, basis, spin, alp
     let R = r * (f.ton - f.erde * 0.22) + f.erde * 34;
     let G = g * (f.ton - f.erde * 0.12) + f.erde * 44;
     let B = b * (f.ton + f.erde * 0.10) + f.erde * 62;
-    // Glanzpunkt und Randlicht kommen additiv dazu. Etwas kraeftiger, damit
-    // die Station auf dem dunklen Globus heller glaenzt.
-    R += 255 * f.glanz * 0.72 + 255 * f.rand * 0.5;
-    G += 255 * f.glanz * 0.72 + 255 * f.rand * 0.5;
-    B += 255 * f.glanz * 0.72 + 255 * f.rand * 0.55;
+    // Glanzpunkt und Randlicht kommen additiv dazu. Kraeftig, damit die
+    // Station auf dem dunklen Globus hell glaenzt.
+    R += 255 * f.glanz * 0.85 + 255 * f.rand * 0.6;
+    G += 255 * f.glanz * 0.85 + 255 * f.rand * 0.6;
+    B += 255 * f.glanz * 0.85 + 255 * f.rand * 0.65;
+    // Ein weicher Weiss-Schein liegt als Schatten hinter jeder Flaeche.
+    // Ueber den dunklen Meeren hebt er die Station sichtbar ab, ohne ihre
+    // Farbe, Form oder Groesse zu veraendern.
+    ctx.shadowColor = "rgba(255,255,255,.55)";
+    ctx.shadowBlur = instance.px(4);
     ctx.fillStyle = `rgba(${Math.round(Math.max(0, Math.min(255, R)))},${Math.round(Math.max(0, Math.min(255, G)))},${Math.round(Math.max(0, Math.min(255, B)))},${alpha})`;
     ctx.fill();
+    // Der Schein darf nicht auf der feinen Silhouettenkante liegen.
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = "transparent";
     // Eine feine, dunkle Kante an den Silhouetten macht die Station auch auf
     // hellem Grund klar erkennbar. Innenkanten bleiben weg, sonst zerfaellt das
     // Gitterwerk in einem Gitter aus Linien.
