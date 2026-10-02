@@ -291,9 +291,6 @@ export function drawGlobeFrame(instance, world){
         ctx.beginPath();
         ctx.moveTo(stueck.punkte[0][0], stueck.punkte[0][1]);
         for(let i = 1; i < stueck.punkte.length; i++) ctx.lineTo(stueck.punkte[i][0], stueck.punkte[i][1]);
-        // Beide Spuren bleiben weiss - rot ist ausschliesslich fuer die
-        // aktuelle Position reserviert, sonst weiss man nicht mehr,
-        // was der Punkt ist.
         ctx.strokeStyle = stueck.vorn ? stilVorn : stilHinten;
         ctx.lineWidth = instance.px(stueck.vorn ? 1.3 : 1);
         ctx.setLineDash(strich);
@@ -304,15 +301,12 @@ export function drawGlobeFrame(instance, world){
 
     const pastTrack = issGroundTrack(currentIssLat, currentIssLon, -1, 0, SAMPLES);
     const nextTrack = issGroundTrack(currentIssLat, currentIssLon, 0, 1, SAMPLES);
-    // Rot durchgezogen: die zuletzt geflogene Umrundung, also die Spur, die
-    // die ISS hinterlaesst. Der rote Punkt der Station sitzt auf dieser Linie
-    // - beides ist dieselbe Sache, die gerade passiert, deshalb dieselbe
-    // Farbe. Weiss bleibt fuer die Zukunft reserviert.
+    // Die Bahn ist durchgehend rot - das ganze Rohr, das die ISS abfliegt.
+    // Der rote Punkt der Station sitzt auf dieser Linie, beides ist dieselbe
+    // Sache. Die Zeitrichtung traegt allein die Strichform:
+    // durchgezogen ist die zuletzt geflogene Umrundung, gestrichelt die naechste.
     strokeTrack(pastTrack, "rgba(255,59,48,.85)", "rgba(255,59,48,.2)", []);
-    // Gestrichelt und weiss: derselbe Kreislauf eine Umrundung weiter - dort
-    // ist die ISS in etwa 92 Minuten. Beide Spuren liegen rund 23 Grad
-    // versetzt zueinander, weil die Erde in dieser Zeit weiterdreht.
-    strokeTrack(nextTrack, "rgba(255,255,255,.9)", "rgba(255,255,255,.22)", [instance.px(4), instance.px(4)]);
+    strokeTrack(nextTrack, "rgba(255,59,48,.9)", "rgba(255,59,48,.24)", [instance.px(4), instance.px(4)]);
 
     // Station und Bahn liegen beide auf dem schwebenden Ring, nicht auf der
     // Kugel. Deshalb laeuft die ISS buendig in ihrer Spur - so soll es sein.
