@@ -291,12 +291,17 @@ export function sucheLaender(liste, begriff, grenze = 8){
     l.alias.some(a => a.includes(ziel) || ziel.includes(a)) ||
     normieren(l.iso2) === ziel
   );
-  // Exakter Treffer nach oben, damit "Japan" nicht hinten landet, nur weil
-  // ein Laender mit aehnlichem Namen weiter oben steht.
+  // Erst exakter Treffer, dann Namen, die mit der Eingabe beginnen, dann der
+  // Rest. So steht bei "D" Deutschland vor "Indien", und "De" raeumt alles
+  // weg, was nicht mit "De" anfaengt.
+  const rang = l => {
+    if(l.alias.some(a => a === ziel) || normieren(l.iso2) === ziel) return 0;
+    if(l.alias.some(a => a.startsWith(ziel))) return 1;
+    return 2;
+  };
   treffer.sort((a, b) => {
-    const exaktA = a.alias.some(a2 => a2 === ziel) ? 0 : 1;
-    const exaktB = b.alias.some(b2 => b2 === ziel) ? 0 : 1;
-    if(exaktA !== exaktB) return exaktA - exaktB;
+    const ra = rang(a), rb = rang(b);
+    if(ra !== rb) return ra - rb;
     return a.name.localeCompare(b.name, "de");
   });
   return treffer.slice(0, grenze);

@@ -15,7 +15,7 @@
       und der alte Auftrag verworfen, wenn ein neuer kommt.
    -------------------------------------------------------------------------- */
 
-import { loadCountries, ueberflugSuchen } from "./issPass.js";
+import { loadCountries, ueberflugSuchen, sucheLaender } from "./issPass.js";
 import { setGlobeLand } from "./issManager.js";
 import { TRANSLATIONS } from "../translations.js";
 import { currentLang } from "../main.js";
@@ -54,40 +54,71 @@ function anzeigeName(land){
   return eigener || land.name;
 }
 
-// Das Auswahlfeld wird nur neu befuellt, wenn es noch leer ist. Sonst waere
-// beim Sprachwechsel die gerade getroffene Auswahl wieder weg - das ist
-// nervoes, wenn man zweimal dieselbe Sprache durchschaltet.
+function feldEl(){ return document.getElementById("issCountryInput"); }
+function listeEl(){ return document.getElementById("issCountryList"); }
+
+function listeSchliessen(){
+  const box = listeEl();
+  if(!box) return;
+  box.hidden = true;
+  const feld = feldEl();
+  if(feld) feld.setAttribute("aria-expanded", "false");
+}
+
+// Treffer unter das Suchfeld schreiben. Gesucht wird in allen mitgefuehrten
+// Namen, "Aegypten", "Ägypten" und "Egypt" finden also dasselbe Land.
+function listeZeichnen(begriff){
+  const box = listeEl();
+  if(!box || !laender) return;
+  const t = TRANSLATIONS[currentLang];
+  const treffer = sucheLaender(laender, begriff, 60);
+
+  if(!treffer.length){
+    box.innerHTML = `<div class="iss-list-empty">${escapeHtml(t.iss_no_match)}</div>`;
+  }else{
+    box.innerHTML = treffer.map(l => {
+      const gewaehlt = gewaehltesLand && gewaehltesLand.name === l.name;
+      return `<button type="button" class="iss-item" role="option"
+        data-name="${escapeHtml(l.name)}" aria-selected="${gewaehlt ? "true" : "false"}"
+      >${escapeHtml(anzeigeName(l))}</button>`;
+    }).join("");
+  }
+  box.hidden = false;
+  const feld = feldEl();
+  if(feld) feld.setAttribute("aria-expanded", "true");
+}
+
+// Ein Land aus der Trefferliste uebernehmen. Im Feld steht danach der
+// Anzeigename, gerechnet wird mit dem stabilen deutschen Namen.
+function waehlen(land){
+  gewaehltesLand = land;
+  const feld = feldEl();
+  if(feld) feld.value = anzeigeName(land);
+  listeSchliessen();
+  suchen(land);
+}
+
+// Das Feld wird nur neu beschriftet, nie geleert: beim Sprachwechsel soll die
+// getroffene Auswahl stehen bleiben. Der Zustand liegt in gewaehltesLand.
 function auswahlZeichnen(){
-  const feld = document.getElementById("issCountrySelect");
+  const feld = feldEl();
   if(!feld) return;
   const t = TRANSLATIONS[currentLang];
 
-  // Beim Neuaufbau (Sprachwechsel) eine bereits gewaehlte Auswahl behalten.
-  const gewaehlt = gewaehltesLand ? gewaehltesLand.name : feld.value;
-
   if(laenderFehler){
     feld.disabled = true;
-    feld.innerHTML = `<option>${t.iss_no_countries}</option>`;
+    feld.placeholder = t.iss_no_countries;
+    feld.value = "";
     return;
   }
   if(!laender){
     feld.disabled = true;
-    feld.innerHTML = `<option>${t.iss_searching}</option>`;
+    feld.placeholder = t.iss_searching;
     return;
   }
-
-  // Ein echtes <select> statt einer Liste: der Browser bringt auf dem
-  // Telefon das eigene Auswahlrad mit, in dem man scrollen und suchen kann.
-  // Eine Liste aus 242 Buttons war auf dem kleinen Bildschirm nicht bedienbar.
-  const sortiert = [...laender].sort((a, b) =>
-    anzeigeName(a).localeCompare(anzeigeName(b), currentLang));
-
   feld.disabled = false;
-  feld.innerHTML = `<option value="">${t.iss_pick}</option>` + sortiert.map(l =>
-    `<option value="${escapeHtml(l.name)}">${escapeHtml(anzeigeName(l))}</option>`
-  ).join("");
-
-  if(gewaehlt) feld.value = gewaehlt;
+  feld.placeholder = t.iss_pick;
+  feld.value = gewaehltesLand ? anzeigeName(gewaehltesLand) : "";
 }
 
 // ---------------------------------------------------------------- Ergebnis
@@ -151,8 +182,9 @@ function auswahlZuruecksetzen(){
   gewaehltesLand = null;
   letzteAntwort = null;
   laufendeSuche++;              // eine noch laufende Rechnung nicht mehr zeigen
-  const feld = document.getElementById("issCountrySelect");
-  if(feld) feld.value = "";
+  const feld = feldEl();
+  if(feld){ feld.value = ""; feld.disabled = false; }
+  listeSchliessen();
   ergebnisZeichnen();
   kreuzZeichnen();
   setGlobeLand(null);
@@ -186,20 +218,45 @@ let laenderGeladen = false;
 // wird der Zuhoerer an das jeweils aktuelle Element gehaengt, statt einmalig
 // beim ersten Mal - sonst waere er nach dem naechsten Rendern tot.
 async function init(){
-  const feld = document.getElementById("issCountrySelect");
+  const feld = feldEl();
   if(!feld) return;
+  const box = listeEl();
 
-  // "change" feuert, sobald wirklich ein anderes Land gewaehlt wurde - auf
-  // Telefonen erst, wenn die Liste bestaetigt ist. Genau das Verhalten, das
-  // man will: nicht schon bei jedem Vorbeiscrollen rechnen.
+  // Tippen filtert die Laenderliste. Gerechnet wird erst, wenn ein Land
+  // wirklich angetippt wurde - nicht schon bei jedem Buchstaben.
   if(!feld.dataset.issLaeuft){
     feld.dataset.issLaeuft = "1";
-    feld.addEventListener("change", () => {
-      const land = laender?.find(l => l.name === feld.value);
-      if(land) suchen(land);
-      // Zurueck auf "Land auswaehlen": keine Auswahl, kein Ergebnis, und die
-      // Kugel zeigt keine rote Umrandung mehr.
-      else auswahlZuruecksetzen();
+    feld.addEventListener("input", () => {
+      const begriff = feld.value.trim();
+      if(!begriff){ listeSchliessen(); return; }
+      listeZeichnen(begriff);
+    });
+    // Beim Fokus den bereits gewaehlten Namen markieren, damit Tippen ihn
+    // ersetzt statt anzuhaengen ("Deutschland" + "D" waere sonst Unsinn).
+    feld.addEventListener("focus", () => {
+      if(gewaehltesLand) feld.select();
+    });
+    // Verlaesst man das Feld ohne neue Auswahl, steht wieder der gewaehlte
+    // Name darin. Das Feld ist eine Suche, keine freie Eingabe.
+    feld.addEventListener("blur", () => {
+      setTimeout(() => {
+        if(document.activeElement === feld) return;
+        listeSchliessen();
+        feld.value = gewaehltesLand ? anzeigeName(gewaehltesLand) : "";
+      }, 120);
+    });
+  }
+
+  if(box && !box.dataset.issLaeuft){
+    box.dataset.issLaeuft = "1";
+    // pointerdown statt click: das laeuft vor dem blur des Feldes, sonst
+    // waere die Liste beim Antippen schon eingeklappt.
+    box.addEventListener("pointerdown", (e) => {
+      const item = e.target.closest(".iss-item");
+      if(!item) return;
+      e.preventDefault();
+      const land = laender?.find(l => l.name === item.dataset.name);
+      if(land) waehlen(land);
     });
   }
 
@@ -232,8 +289,7 @@ export function renderIssPass(){
 
 // Sprachwechsel: neu uebersetzen, Berechnung nicht wiederholen.
 export function issPassSprache(){
-  const feld = document.getElementById("issCountrySelect");
-  if(feld) auswahlZeichnen();
+  auswahlZeichnen();
   ergebnisZeichnen();
   kreuzZeichnen();
 }

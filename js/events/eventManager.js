@@ -283,12 +283,18 @@ export function openDetail(eventId, viewPrefix){
            will wissen, ob sie ueber das eigene Land kommt. Zwei Zeilen
            Ergebnis, mehr braucht es dafuer nicht. -->
       <div class="iss-block">
-        <div class="iss-select-row">
-          <select class="iss-select" id="issCountrySelect"></select>
-          <!-- Leeres Land wieder abwaehlen: loest Auswahl, Ergebnis und die
-               rote Umrandung auf der Kugel in einem Schritt. -->
-          <button type="button" class="iss-clear" id="issCountryClear"
-            aria-label="${t.iss_clear}" hidden>&times;</button>
+        <div class="iss-combo" id="issCombo">
+          <div class="iss-select-row">
+            <input type="text" class="iss-search" id="issCountryInput"
+              placeholder="${t.iss_pick}" aria-label="${t.iss_pick}"
+              autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+              role="combobox" aria-expanded="false" aria-controls="issCountryList">
+            <!-- Leeres Land wieder abwaehlen: loest Auswahl, Ergebnis und die
+                 rote Umrandung auf der Kugel in einem Schritt. -->
+            <button type="button" class="iss-clear" id="issCountryClear"
+              aria-label="${t.iss_clear}" hidden>&times;</button>
+          </div>
+          <div class="iss-list" id="issCountryList" role="listbox" hidden></div>
         </div>
         <div class="iss-result" id="issResult"></div>
       </div>
