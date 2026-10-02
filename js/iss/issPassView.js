@@ -33,19 +33,6 @@ let letzteAntwort = null;
 
 // ------------------------------------------------------------------ Hilfen
 
-function gradZuText(lat, lon){
-  const ns = lat >= 0 ? "N" : "S";
-  const ew = lon >= 0 ? "E" : "W";
-  return `${Math.abs(lat).toFixed(2)}° ${ns} / ${Math.abs(lon).toFixed(2)}° ${ew}`;
-}
-
-function alterText(stunden){
-  if(stunden == null || !Number.isFinite(stunden)) return "";
-  if(stunden < 1.5) return "weniger als 2 Stunden";
-  if(stunden < 48) return `${Math.round(stunden)} Stunden`;
-  return `${Math.round(stunden / 24)} Tagen`;
-}
-
 function dauerText(sek){
   if(sek < 60) return `${sek.toFixed(1).replace(".", ",")} s`;
   const m = Math.floor(sek / 60);
@@ -56,37 +43,6 @@ function dauerText(sek){
 // Die Bodenspur als kleines Bild: x nach Osten, y nach Norden. Weil die
 // Karte dort gekappt ist, wird zusaetzlich der Aequator als Linie gezeigt -
 // sonst sieht ein Ueberflug am suedlichen Rand wie einer in Mitteleuropa aus.
-function spurBild(punkte){
-  if(!punkte || punkte.length < 2) return "";
-  const lats = punkte.map(p => p[0]);
-  const lons = punkte.map(p => p[1]);
-  const minLat = Math.min(...lats), maxLat = Math.max(...lats);
-  const minLon = Math.min(...lons), maxLon = Math.max(...lons);
-
-  // Etwas Luft ringsum, damit die Linie nicht am Rahmen klebt.
-  const latPad = Math.max((maxLat - minLat) * 0.15, 0.35);
-  const lonPad = Math.max((maxLon - minLon) * 0.15, 0.35);
-  const unten = minLat - latPad, oben = maxLat + latPad;
-  const links = minLon - lonPad, rechts = maxLon + lonPad;
-
-  const W = 300, H = 110;
-  const x = lon => ((lon - links) / (rechts - links)) * W;
-  const y = lat => H - ((lat - unten) / (oben - unten)) * H;
-  const clip = v => Math.max(0, Math.min(W, v));
-
-  const pfad = punkte.map((p, i) =>
-    `${i ? "L" : "M"}${clip(x(p[1])).toFixed(1)} ${y(p[0]).toFixed(1)}`).join(" ");
-  const aequator = (unten <= 0 && oben >= 0)
-    ? `<line x1="0" y1="${y(0).toFixed(1)}" x2="${W}" y2="${y(0).toFixed(1)}" stroke="rgba(255,255,255,.14)" stroke-dasharray="3 4"/>`
-    : "";
-
-  return `<svg class="iss-trail" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
-    ${aequator}
-    <path d="${pfad}" fill="none" stroke="#7fd4ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-    <circle cx="${clip(x(punkte[0][1])).toFixed(1)}" cy="${y(punkte[0][0]).toFixed(1)}" r="3" fill="#7fd4ff"/>
-  </svg>`;
-}
-
 // ---------------------------------------------------------------- Auswahlfeld
 
 // Der deutsche Name ist der Schluessel im Code, angezeigt wird aber der
@@ -154,45 +110,24 @@ function ergebnisZeichnen(){
     return;
   }
 
-  const alter = alterText(a.tleAlterStunden);
-  const alterZeile = alter
-    ? `<div class="iss-note${a.notfall ? " warn" : ""}">${a.notfall ? t.iss_tle_cached : t.iss_tle_old.replace("%s", alter)}</div>`
-    : "";
-
   if(a.ueberflug){
     const u = a.ueberflug;
     const wann = new Date(u.zeitpunkt);
-    const sichtbar = u.sichtbar;
-    box.innerHTML = `<div class="iss-card">
-      <div class="eyebrow">${t.iss_result_in}</div>
-      <div class="when">${fmtClock(wann)}</div>
-      <div class="sub">${fmtDate(wann)}${tzOffsetHours ? ` · UTC${tzOffsetHours >= 0 ? "+" : ""}${tzOffsetHours}` : ""}</div>
-      <div class="iss-facts">
-        <div><label>${t.iss_duration}</label><val>${dauerText(u.dauerSek)}</val></div>
-        <div><label>${t.iss_maxheight}</label><val>${Math.round(u.maxHoehe)}°</val></div>
-        <div><label>${t.iss_observer}</label><val style="font-size:12px">${gradZuText(u.beobachter.lat, u.beobachter.lon)}</val></div>
-        <div><label>${sichtbar ? t.iss_visible : t.iss_not_visible}</label><val>${sichtbar ? "✓" : "—"}</val></div>
-      </div>
-      ${spurBild(u.punkte)}
-      ${alterZeile}
-      ${a.notfall ? `<div class="iss-note warn">${t.iss_bad_tle_hint}</div>` : ""}
+    const land = anzeigeName(gewaehltesLand || {name:""});
+    // Nur zwei Zeilen. Wer hier nachschaut, will Zeitpunkt und Dauer wissen -
+    // Höhe, Sichtbarkeit, Beobachtungspunkt und Bild sind Zusatz, die den
+    // Platz unter der Kugel zerschiessen.
+    box.innerHTML = `<div class="iss-lines">
+      <div class="iss-line"><label>${t.iss_next_over} ${escapeHtml(land)}</label><val>${fmtClock(wann)} ${fmtDate(wann)}</val></div>
+      <div class="iss-line"><label>${t.iss_duration_over} ${escapeHtml(land)}</label><val>${dauerText(u.dauerSek)}</val></div>
     </div>`;
     return;
   }
 
-  // Kein Ueberflug, aber wie nah dran?
-  const ann = a.annaeherung;
-  const annZeile = ann && Number.isFinite(ann.abstandKm)
-    ? `<div class="sub" style="margin-top:8px">${t.iss_closest_sub.replace("%s", Math.round(ann.abstandKm))}</div>`
-    : "";
-  box.innerHTML = `<div class="iss-card">
-    <div class="iss-none" style="padding:14px 0">
-      <div class="big">${t.iss_result_none}</div>
-      <div>${t.iss_result_none_sub}</div>
-    </div>
-    ${annZeile}
-    ${alterZeile}
-  </div>`;
+  // Kein Ueberflug. Abstand weggelassen: die Rechnung liefert ihn zwar, aber
+  // "27 km vom Zentrum entfernt" ist eine Zahl ohne Nutzen - entweder sie
+  // kommt drueber oder sie kommt nicht.
+  box.innerHTML = `<div class="iss-none">${t.iss_result_none}</div>`;
 }
 
 function statusZeichnen(text){

@@ -142,13 +142,9 @@
   .empty{text-align:center;color:var(--muted);padding-top:15vh}
   .empty .title{font-size:20px;font-weight:650;color:#fff}
 
-  /* Die ISS-Karte traegt Kopfzeile und Auswahlfeld in einer Einheit. Ohne das
-     eigene display:block spannt sich das Grid der Karte ueber das ganze Feld
-     und die Kopfzeile kaeme mit nach unten. */
-  .event.iss-card{display:block;padding:0}
-  .event.iss-card .iss-head{display:grid;grid-template-columns:54px 1fr auto;gap:13px;align-items:center;padding:14px}
-  .iss-block{padding:0 14px 15px}
-  .iss-label{display:block;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:7px}
+  /* Unter der Kugel: Auswahlfeld und zwei Ergebniszeilen. Bewusst schlicht,
+     der Platz zwischen Kugel und Messwerten ist knapp. */
+  .iss-block{margin:0 0 16px}
   .iss-select{width:100%;padding:12px 14px;border-radius:14px;border:1px solid var(--border);
     background:rgba(255,255,255,.05);color:#fff;font-size:15px;font-weight:600;
     outline:none;appearance:none;-webkit-appearance:none;cursor:pointer;
@@ -157,7 +153,14 @@
   .iss-select:focus{border-color:rgba(255,255,255,.3)}
   /* Auf iOS blendet der Browser sonst weissen Text auf weissem Grund aus. */
   .iss-select option{background:#12141c;color:#fff}
-  .iss-result{margin-top:16px}
+  .iss-result{margin-top:12px}
+  .iss-lines{display:grid;gap:7px}
+  .iss-line{display:flex;gap:12px;justify-content:space-between;align-items:baseline;
+    padding:10px 13px;border:1px solid var(--border);border-radius:14px;background:rgba(255,255,255,.03)}
+  .iss-line label{font-size:12px;color:var(--muted);min-width:0}
+  .iss-line val{font-size:13px;font-weight:650;color:#fff;white-space:nowrap}
+  .iss-none{padding:11px 13px;border:1px solid var(--border);border-radius:14px;
+    background:rgba(255,255,255,.03);font-size:12.5px;color:var(--muted)}
   .hist-list{display:grid;gap:12px}
   .hist-card{border:1px solid var(--border);border-radius:20px;background:rgba(255,255,255,.03);overflow:hidden;cursor:pointer;display:grid;grid-template-columns:64px 1fr;gap:13px;padding:12px}
   .hist-thumb{width:64px;height:64px;border-radius:14px;background:rgba(255,255,255,.03);border:1px solid var(--border);display:grid;place-items:center}

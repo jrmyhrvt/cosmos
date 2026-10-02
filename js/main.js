@@ -2,6 +2,7 @@ import { EVENTS, fetchSpaceCalendarFeed, lastSyncAt, loadEventCache, updateSyncI
 import { addEventToCalendar, changeOffset, closeDetail, eventState, openDetail, renderAll, renderEvents, renderHistory, resetDetail, sortEventsAutomatically, tickCountdowns, tzOffsetHours } from "./events/eventManager.js";
 import { GLOSTAR_DATA, jumpToGloStar, openGloStarDetail, renderGloStar } from "./glostar/glostar.js";
 import { pruneGlobes } from "./iss/issManager.js";
+import { issPassSprache } from "./iss/issPassView.js";
 import { TRANSLATIONS } from "./translations.js";
 export let currentLang = 'de';
 export function setLanguage(lang) {
@@ -26,6 +27,10 @@ export function setLanguage(lang) {
   });
 
   renderAll();
+  // Die Detailseite der ISS wird bei setLanguage nicht neu aufgebaut, das
+  // Laenderergebnis darunter aber schon - sonst bliebe der Landesname in der
+  // alten Sprache stehen.
+  issPassSprache();
   renderGloStar(document.getElementById('searchGloStar').value);
   updateSyncInfo();
 
