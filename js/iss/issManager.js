@@ -643,7 +643,9 @@ export function drawIssModel(ctx, instance, projection, center, basis, spin, alp
     const rand = Math.pow(1 - zurKamera, 3) * 0.18;
 
     const tiefe = ecken.reduce((sum, e) => sum + e[2]*hoch[0] + e[3]*hoch[1] + e[4]*hoch[2], 0) / 4;
-    flaechen.push({ecken, farbe: teil.farbe, ton: 0.2 + 0.78*sonne + 0.3*erde,
+    // Grundhelligkeit bewusst hoch: die Station wirkte auf dem dunklen Globus
+    // sonst zu duenn. Nur die Helligkeit, nicht die Farbwerte selbst.
+    flaechen.push({ecken, farbe: teil.farbe, ton: 0.34 + 0.94*sonne + 0.42*erde,
                    erde, glanz: glanzFleck, rand, tiefe});
   }
   // Von hinten nach vorn zeichnen, sonst liegen die nahen Flaechen drunter
@@ -658,10 +660,11 @@ export function drawIssModel(ctx, instance, projection, center, basis, spin, alp
     let R = r * (f.ton - f.erde * 0.22) + f.erde * 34;
     let G = g * (f.ton - f.erde * 0.12) + f.erde * 44;
     let B = b * (f.ton + f.erde * 0.10) + f.erde * 62;
-    // Glanzpunkt und Randlicht kommen additiv dazu.
-    R += 255 * f.glanz * 0.5 + 255 * f.rand * 0.35;
-    G += 255 * f.glanz * 0.5 + 255 * f.rand * 0.35;
-    B += 255 * f.glanz * 0.5 + 255 * f.rand * 0.4;
+    // Glanzpunkt und Randlicht kommen additiv dazu. Etwas kraeftiger, damit
+    // die Station auf dem dunklen Globus heller glaenzt.
+    R += 255 * f.glanz * 0.72 + 255 * f.rand * 0.5;
+    G += 255 * f.glanz * 0.72 + 255 * f.rand * 0.5;
+    B += 255 * f.glanz * 0.72 + 255 * f.rand * 0.55;
     ctx.fillStyle = `rgba(${Math.round(Math.max(0, Math.min(255, R)))},${Math.round(Math.max(0, Math.min(255, G)))},${Math.round(Math.max(0, Math.min(255, B)))},${alpha})`;
     ctx.fill();
     // Eine feine, dunkle Kante an den Silhouetten macht die Station auch auf
