@@ -220,30 +220,37 @@ async function suchen(land){
 
 let laenderGeladen = false;
 
+// Das Auswahlfeld wird bei jedem Neuaufbau der Live-Liste neu erzeugt. Deshalb
+// wird der Zuhoerer an das jeweils aktuelle Element gehaengt, statt einmalig
+// beim ersten Mal - sonst waere er nach dem naechsten Rendern tot.
 async function init(){
   const feld = document.getElementById("issCountrySelect");
-  if(!feld || laenderGeladen) return;
-  laenderGeladen = true;
+  if(!feld) return;
 
   // "change" feuert, sobald wirklich ein anderes Land gewaehlt wurde - auf
   // Telefonen erst, wenn die Liste bestaetigt ist. Genau das Verhalten, das
   // man will: nicht schon bei jedem Vorbeiscrollen rechnen.
-  feld.addEventListener("change", () => {
-    const land = laender?.find(l => l.name === feld.value);
-    if(land) suchen(land);
-    else{
-      // Zurueck auf "Land auswaehlen": keine Auswahl, kein Ergebnis.
-      gewaehltesLand = null;
-      letzteAntwort = null;
-      ergebnisZeichnen();
-    }
-  });
+  if(!feld.dataset.issLaeuft){
+    feld.dataset.issLaeuft = "1";
+    feld.addEventListener("change", () => {
+      const land = laender?.find(l => l.name === feld.value);
+      if(land) suchen(land);
+      else{
+        // Zurueck auf "Land auswaehlen": keine Auswahl, kein Ergebnis.
+        gewaehltesLand = null;
+        letzteAntwort = null;
+        ergebnisZeichnen();
+      }
+    });
+  }
 
-  auswahlZeichnen();
-  try{
-    laender = await loadCountries();
-  }catch(err){
-    laenderFehler = err;
+  if(!laenderGeladen){
+    laenderGeladen = true;
+    try{
+      laender = await loadCountries();
+    }catch(err){
+      laenderFehler = err;
+    }
   }
   auswahlZeichnen();
   ergebnisZeichnen();
@@ -251,12 +258,11 @@ async function init(){
 
 export function renderIssPass(){
   init();
-  auswahlZeichnen();
-  ergebnisZeichnen();
 }
 
 // Sprachwechsel: neu uebersetzen, Berechnung nicht wiederholen.
 export function issPassSprache(){
-  auswahlZeichnen();
+  const feld = document.getElementById("issCountrySelect");
+  if(feld) auswahlZeichnen();
   ergebnisZeichnen();
 }

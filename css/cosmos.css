@@ -142,7 +142,12 @@
   .empty{text-align:center;color:var(--muted);padding-top:15vh}
   .empty .title{font-size:20px;font-weight:650;color:#fff}
 
-  .iss-panel{margin-top:22px;padding-top:20px;border-top:1px solid var(--border)}
+  /* Die ISS-Karte traegt Kopfzeile und Auswahlfeld in einer Einheit. Ohne das
+     eigene display:block spannt sich das Grid der Karte ueber das ganze Feld
+     und die Kopfzeile kaeme mit nach unten. */
+  .event.iss-card{display:block;padding:0}
+  .event.iss-card .iss-head{display:grid;grid-template-columns:54px 1fr auto;gap:13px;align-items:center;padding:14px}
+  .iss-block{padding:0 14px 15px}
   .iss-label{display:block;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:7px}
   .iss-select{width:100%;padding:12px 14px;border-radius:14px;border:1px solid var(--border);
     background:rgba(255,255,255,.05);color:#fff;font-size:15px;font-weight:600;

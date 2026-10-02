@@ -1,6 +1,7 @@
 import { EVENTS, getEventCategory, updateSyncInfo } from "../api.js";
 import { glostarLookupLabel, jumpToGloStar } from "../glostar/glostar.js";
 import { formatIssLat, formatIssLon, mountGlobe, pruneGlobes, updateIssReadouts } from "../iss/issManager.js";
+import { renderIssPass } from "../iss/issPassView.js";
 import { currentLang } from "../main.js";
 import { deliverEventIcs, googleCalendarUrl } from "./calendarExport.js";
 import { FEED_I18N, SVG_ICONS, TRANSLATIONS, cleanFeedText, extractFeedFacts, localizeRegions, translateFeedTitle } from "../translations.js";
@@ -424,18 +425,38 @@ export function renderLiveEvents(){
     return;
   }
 
+  // Die ISS bekommt die Laendersuche direkt in ihre Karte eingebaut: der
+  // Nutzer will "fliegt sie ueber mein Land" wissen, solange er die
+  // Live-Position ansieht - nicht in einem eigenen Bereich darunter.
   list.innerHTML = liveEvents.map((e)=>{
     const tm = timing(e);
-    return `<article class="event live" data-event-id="${e.id}" onclick="openDetail('${e.id}', 'live-view')">
-      <div class="icon">${SVG_ICONS[e.icon] || SVG_ICONS.star}</div>
-      <div class="meta">
-        <div class="name">${eventTitle(e)}</div>
-        <div class="time">${fmtEventTime(e)}</div>
-        <div class="badge-row"><span class="badge">${eventKindLabel(e)}</span><span class="badge">${t.active}</span></div>
+    const iss = e.id === "iss-live";
+    return `<article class="event live${iss ? " iss-card" : ""}" data-event-id="${e.id}" onclick="openDetail('${e.id}', 'live-view')">
+      <div class="iss-head">
+        <div class="icon">${SVG_ICONS[e.icon] || SVG_ICONS.star}</div>
+        <div class="meta">
+          <div class="name">${eventTitle(e)}</div>
+          <div class="time">${fmtEventTime(e)}</div>
+          <div class="badge-row"><span class="badge">${eventKindLabel(e)}</span><span class="badge">${t.active}</span></div>
+        </div>
+        <div class="count"><strong>${tm.main}</strong><small>${tm.sub}</small></div>
       </div>
-      <div class="count"><strong>${tm.main}</strong><small>${tm.sub}</small></div>
+      ${iss ? `
+      <div class="iss-block">
+        <div class="iss-label">${t.sec_iss_eyebrow}</div>
+        <select class="iss-select" id="issCountrySelect"></select>
+        <div class="iss-result" id="issResult"></div>
+      </div>` : ""}
     </article>`;
   }).join("");
+
+  // Das Auswahlfeld liegt in einer Karte, die beim Tippen die Detailseite
+  // oeffnet. Ohne das hier wuerde jeder Tipp auf das Feld zusaetzlich die
+  // Detailseite aufreissen.
+  if(list.querySelector("#issCountrySelect")){
+    list.querySelector("#issCountrySelect").addEventListener("click", e => e.stopPropagation());
+    renderIssPass();
+  }
 }
 
 export function renderEvents(filterText = ""){
@@ -501,6 +522,7 @@ export function renderAll(){
   renderLiveEvents();
   renderEvents(document.getElementById("searchEvents")?.value || "");
   renderHistory(document.getElementById("searchHistory")?.value || "");
+  renderIssPass();
 }
 
 // Countdown laeuft sekundengenau, ohne die Liste neu aufzubauen.
