@@ -1,6 +1,7 @@
 /* --------------------------------------------------------------------------
-   ISS-ÜBERFLÜGE - Ansicht
-   Land suchen, Überflug berechnen, Ergebnis anzeigen.
+   ISS-LÄNDERÜBERFLUG
+   Teil des Live-Fensters, kein eigener Tab. Auswahlfeld, Rechnung,
+   Ergebnis.
 
    Die Rechnung steckt in issPass.js, diese Datei ist nur die Oberfläche.
    Zwei Dinge sind hier bewusst getrennt von den Ereignislisten:
@@ -10,12 +11,11 @@
       NICHT stehen, die ISS fliege in 45 Tagen nicht darueber.
 
    2. Die Berechnung braucht je nach Land unterschiedlich lange. Vatikanstadt
-      braucht gut eine Sekunde, Kiribati dreissig. Ein eingefrorener Button
-      waere eine tote Oberflaeche, deshalb wird gearbeitet und der alte
-      Auftrag verworfen, wenn ein neuer kommt.
+      braucht gut eine Sekunde, Kiribati dreissig. Deshalb wird gearbeitet
+      und der alte Auftrag verworfen, wenn ein neuer kommt.
    -------------------------------------------------------------------------- */
 
-import { loadCountries, sucheLaender, ueberflugSuchen } from "./issPass.js";
+import { loadCountries, ueberflugSuchen } from "./issPass.js";
 import { TRANSLATIONS } from "../translations.js";
 import { currentLang } from "../main.js";
 import { escapeHtml, fmtDate, fmtClock, tzOffsetHours } from "../events/eventManager.js";
@@ -87,44 +87,50 @@ function spurBild(punkte){
   </svg>`;
 }
 
-// ------------------------------------------------------------------ Listen
+// ---------------------------------------------------------------- Auswahlfeld
 
 // Der deutsche Name ist der Schluessel im Code, angezeigt wird aber der
-// Name der gerade gewaehlten Sprache. Ohne Sprachnamen zeigte die Liste in
-// Spanisch "Spanien", in Englisch ebenfalls - das war irritierend.
+// Name der gerade gewaehlten Sprache.
 function anzeigeName(land){
   const lang = currentLang;
   const eigener = lang === "en" ? land.nameEn : lang === "es" ? land.nameEs : land.nameDe;
   return eigener || land.name;
 }
 
-function laenderZeichnen(begriff){
-  const box = document.getElementById("issCountryList");
-  if(!box) return;
+// Das Auswahlfeld wird nur neu befuellt, wenn es noch leer ist. Sonst waere
+// beim Sprachwechsel die gerade getroffene Auswahl wieder weg - das ist
+// nervoes, wenn man zweimal dieselbe Sprache durchschaltet.
+function auswahlZeichnen(){
+  const feld = document.getElementById("issCountrySelect");
+  if(!feld) return;
   const t = TRANSLATIONS[currentLang];
 
+  // Beim Neuaufbau (Sprachwechsel) eine bereits gewaehlte Auswahl behalten.
+  const gewaehlt = gewaehltesLand ? gewaehltesLand.name : feld.value;
+
   if(laenderFehler){
-    box.innerHTML = `<div class="empty"><div class="title">${t.iss_no_countries}</div></div>`;
+    feld.disabled = true;
+    feld.innerHTML = `<option>${t.iss_no_countries}</option>`;
     return;
   }
   if(!laender){
-    box.innerHTML = `<div class="iss-none">${t.iss_searching}</div>`;
+    feld.disabled = true;
+    feld.innerHTML = `<option>${t.iss_searching}</option>`;
     return;
   }
 
-  const treffer = begriff
-    ? sucheLaender(laender, begriff, 40)
-    : laender.slice(0, 40);
+  // Ein echtes <select> statt einer Liste: der Browser bringt auf dem
+  // Telefon das eigene Auswahlrad mit, in dem man scrollen und suchen kann.
+  // Eine Liste aus 242 Buttons war auf dem kleinen Bildschirm nicht bedienbar.
+  const sortiert = [...laender].sort((a, b) =>
+    anzeigeName(a).localeCompare(anzeigeName(b), currentLang));
 
-  if(!treffer.length){
-    box.innerHTML = `<div class="iss-none">${t.iss_no_match}</div>`;
-    return;
-  }
-
-  box.innerHTML = treffer.map(l =>
-    `<button class="iss-chip${gewaehltesLand && gewaehltesLand.name === l.name ? " on" : ""}"
-             data-land="${escapeHtml(l.name)}">${escapeHtml(anzeigeName(l))}</button>`
+  feld.disabled = false;
+  feld.innerHTML = `<option value="">${t.iss_pick}</option>` + sortiert.map(l =>
+    `<option value="${escapeHtml(l.name)}">${escapeHtml(anzeigeName(l))}</option>`
   ).join("");
+
+  if(gewaehlt) feld.value = gewaehlt;
 }
 
 // ---------------------------------------------------------------- Ergebnis
@@ -199,7 +205,6 @@ function statusZeichnen(text){
 async function suchen(land){
   if(!land) return;
   gewaehltesLand = land;
-  laenderZeichnen(document.getElementById("issCountrySearch")?.value || "");
   statusZeichnen(TRANSLATIONS[currentLang].iss_calculating);
 
   const nr = ++laufendeSuche;
@@ -216,37 +221,42 @@ async function suchen(land){
 let laenderGeladen = false;
 
 async function init(){
-  const feld = document.getElementById("issCountrySearch");
+  const feld = document.getElementById("issCountrySelect");
   if(!feld || laenderGeladen) return;
   laenderGeladen = true;
 
-  feld.addEventListener("input", () => laenderZeichnen(feld.value));
-
-  document.getElementById("issCountryList")?.addEventListener("click", e => {
-    const chip = e.target.closest(".iss-chip");
-    if(!chip) return;
-    const land = laender?.find(l => l.name === chip.dataset.land);
+  // "change" feuert, sobald wirklich ein anderes Land gewaehlt wurde - auf
+  // Telefonen erst, wenn die Liste bestaetigt ist. Genau das Verhalten, das
+  // man will: nicht schon bei jedem Vorbeiscrollen rechnen.
+  feld.addEventListener("change", () => {
+    const land = laender?.find(l => l.name === feld.value);
     if(land) suchen(land);
+    else{
+      // Zurueck auf "Land auswaehlen": keine Auswahl, kein Ergebnis.
+      gewaehltesLand = null;
+      letzteAntwort = null;
+      ergebnisZeichnen();
+    }
   });
 
+  auswahlZeichnen();
   try{
     laender = await loadCountries();
   }catch(err){
     laenderFehler = err;
   }
-  if(gewaehltesLand) gewaehltesLand = laender?.find(l => l.name === gewaehltesLand.name) || null;
-  laenderZeichnen(feld.value);
+  auswahlZeichnen();
   ergebnisZeichnen();
 }
 
 export function renderIssPass(){
   init();
-  laenderZeichnen(document.getElementById("issCountrySearch")?.value || "");
+  auswahlZeichnen();
   ergebnisZeichnen();
 }
 
 // Sprachwechsel: neu uebersetzen, Berechnung nicht wiederholen.
 export function issPassSprache(){
-  laenderZeichnen(document.getElementById("issCountrySearch")?.value || "");
+  auswahlZeichnen();
   ergebnisZeichnen();
 }
