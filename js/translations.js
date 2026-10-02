@@ -780,6 +780,7 @@ export const SVG_ICONS = {
   star: `<svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`,
   orbit: `<svg viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="10" ry="4"/><circle cx="12" cy="8" r="2"/></svg>`,
   blackhole: `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6" fill="#fff"/><circle cx="12" cy="12" r="10" stroke="#fff" stroke-dasharray="2 2" fill="none"/></svg>`,
+  singularitaet: `<svg viewBox="0 0 24 24"><ellipse cx="12" cy="8" rx="9" ry="3.6"/><ellipse cx="12" cy="13" rx="5.4" ry="2.2"/><ellipse cx="12" cy="16.6" rx="2.2" ry=".9"/><circle cx="12" cy="19.6" r="1.5" fill="#fff" stroke="none"/></svg>`,
   supernova: `<svg viewBox="0 0 24 24"><path d="M12 2v6M12 16v6M2 12h6M16 12h6M4.9 4.9l4.2 4.2M14.9 14.9l4.2 4.2M19.1 4.9l-4.2 4.2M9.1 14.9l-4.2 4.2"/><circle cx="12" cy="12" r="2.5" fill="#fff"/></svg>`,
   nebula: `<svg viewBox="0 0 24 24"><path d="M3 15c2-4 5-6 9-6s7 2 9 5"/><path d="M4 10c3-3 6-4 8-4s5 1 7 3"/><circle cx="8" cy="14" r="1"/><circle cx="15" cy="10" r="1"/></svg>`,
   redshift: `<svg viewBox="0 0 24 24"><path d="M3 12h10"/><path d="M9 8l4 4-4 4"/><path d="M15 12h6" stroke-dasharray="2 2"/></svg>`,
