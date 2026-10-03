@@ -131,8 +131,73 @@ export function gText(item, field){
   return t[item[`${field}Key`]] || "";
 }
 
+// Abstand, in dem die klebenden Buchstaben unter dem Suchfeld haengen bleiben.
+// Wird beim Zeichnen aus der echten Hoehe der Suchleiste ermittelt, damit es
+// auf jedem Bildschirm und fuer jede Sprache passt.
+let glostarStickyVersatz = 62;
+
+function messeGloStarVersatz(){
+  const view = document.getElementById("glostar");
+  const leiste = view && view.querySelector(".search-sticky");
+  if(!view || !leiste) return;
+  // Sichtbare Unterkante des Suchfelds, gemessen vom oberen Rand der Ansicht.
+  glostarStickyVersatz = Math.round(leiste.getBoundingClientRect().bottom - view.getBoundingClientRect().top);
+  // position:sticky misst den top-Wert vom Scrollport plus dem Innenabstand der
+  // Ansicht. Den rechnen wir heraus, damit die Buchstaben genau unter dem
+  // Suchfeld kleben und nicht 22 px darunter.
+  const innenAbstand = parseFloat(getComputedStyle(view).paddingTop) || 0;
+  view.style.setProperty("--gs-sticky", Math.max(0, glostarStickyVersatz - innenAbstand) + "px");
+}
+
+// Hebt in der Buchstabenleiste den Abschnitt hervor, der gerade oben steht.
+export function aktualisiereGloStarAlphabet(){
+  const view = document.getElementById("glostar");
+  if(!view) return;
+  const sektionen = [...view.querySelectorAll(".glostar-sektion")];
+  if(!sektionen.length) return;
+  const grenze = view.getBoundingClientRect().top + glostarStickyVersatz + 6;
+  let aktiv = sektionen[0].dataset.letter;
+  for(const sektion of sektionen){
+    if(sektion.getBoundingClientRect().top <= grenze) aktiv = sektion.dataset.letter;
+    else break;
+  }
+  // Ganz unten bleibt der letzte Abschnitt hervorgehoben, auch wenn er den
+  // oberen Rand nie erreicht, weil die Liste dort endet.
+  if(view.scrollTop + view.clientHeight >= view.scrollHeight - 4){
+    aktiv = sektionen[sektionen.length - 1].dataset.letter;
+  }
+  for(const knopf of view.querySelectorAll(".glostar-alpha-letter")){
+    knopf.classList.toggle("active", knopf.dataset.letter === aktiv);
+  }
+}
+
+// Springt sanft zum Abschnitt eines Buchstabens, so dass er unter der
+// Suchleiste steht. Wird von den Knoepfen der Buchstabenleiste aufgerufen.
+export function springeZuGloStarBuchstabe(buchstabe){
+  const view = document.getElementById("glostar");
+  const sektion = view && view.querySelector(`.glostar-sektion[data-letter="${buchstabe}"]`);
+  if(!view || !sektion) return;
+  const ziel = sektion.getBoundingClientRect().top - view.getBoundingClientRect().top
+    + view.scrollTop - glostarStickyVersatz;
+  view.scrollTo({top: Math.max(0, ziel), behavior: "smooth"});
+}
+
+// Die Buchstabenleiste haengt an der Ansicht, nicht an der bei jedem Neuzeichnen
+// ersetzten Liste - deshalb nur einmal verdrahten.
+let glostarScrollVerdrahtet = false;
+function verdrahteGloStarAlphabet(){
+  const view = document.getElementById("glostar");
+  if(!view || glostarScrollVerdrahtet) return;
+  view.addEventListener("scroll", () => {
+    if(view.classList.contains("active")) aktualisiereGloStarAlphabet();
+  }, {passive: true});
+  window.addEventListener("resize", () => { messeGloStarVersatz(); aktualisiereGloStarAlphabet(); });
+  glostarScrollVerdrahtet = true;
+}
+
 export function renderGloStar(filterText = ""){
   const grid = document.getElementById("glostarGrid");
+  const alphabet = document.getElementById("glostarAlphabet");
   const items = GLOSTAR_DATA.filter(item => {
     const itemName = gText(item, "name").toLowerCase();
     const itemSum = gText(item, "sum").toLowerCase();
@@ -144,24 +209,41 @@ export function renderGloStar(filterText = ""){
   // Spanischen unterschiedliche Namen sichtbar sind.
   items.sort((a, b) => gText(a, "name").localeCompare(gText(b, "name"), currentLang, {sensitivity: "base"}));
 
-  let letzterBuchstabe = "";
-  grid.innerHTML = items.map(item => {
-    const idx = GLOSTAR_DATA.indexOf(item);
-    const rohName = gText(item, "name");
-    const itemName = escapeHtml(rohName);
-    // Uebersicht zeigt nur den Begriff und sein Piktogramm - die Definition
-    // steht erst auf der Detailseite. Ein neuer Anfangsbuchstabe bekommt eine
-    // groessere Ueberschrift, damit die alphabetische Ordnung lesbar bleibt.
-    const buchstabe = (rohName.trim()[0] || "#").toUpperCase();
-    const kopf = buchstabe !== letzterBuchstabe
-      ? `<div class="glostar-letter">${escapeHtml(buchstabe)}</div>`
+  // Nach Anfangsbuchstaben gruppieren. Jede Gruppe wird ein Abschnitt, damit
+  // ihr Buchstabe beim Scrollen oben kleben bleibt - wie die Sticky-Scroll-
+  // Ueberschriften im VS Code.
+  const gruppen = [];
+  for(const item of items){
+    const anfang = (gText(item, "name").trim()[0] || "#").toUpperCase();
+    const letzte = gruppen[gruppen.length - 1];
+    if(letzte && letzte.buchstabe === anfang) letzte.items.push(item);
+    else gruppen.push({buchstabe: anfang, items: [item]});
+  }
+
+  grid.innerHTML = gruppen.map(gruppe => `<section class="glostar-sektion" data-letter="${escapeHtml(gruppe.buchstabe)}">
+    <div class="glostar-letter">${escapeHtml(gruppe.buchstabe)}</div>
+    ${gruppe.items.map(item => {
+      const idx = GLOSTAR_DATA.indexOf(item);
+      const itemName = escapeHtml(gText(item, "name"));
+      // Uebersicht zeigt nur den Begriff und sein Piktogramm - die Definition
+      // steht erst auf der Detailseite.
+      return `<div class="glostar-row" onclick="openGloStarDetail(${idx})">
+        <span class="glostar-row-name">${itemName}</span>
+        <span class="glostar-row-icon">${SVG_ICONS[item.icon] || SVG_ICONS.star}</span>
+      </div>`;
+    }).join("")}
+  </section>`).join("");
+
+  if(alphabet){
+    alphabet.innerHTML = gruppen.length > 1
+      ? gruppen.map(gruppe => `<button type="button" class="glostar-alpha-letter" data-letter="${escapeHtml(gruppe.buchstabe)}" onclick="springeZuGloStarBuchstabe('${escapeHtml(gruppe.buchstabe)}')">${escapeHtml(gruppe.buchstabe)}</button>`).join("")
       : "";
-    letzterBuchstabe = buchstabe;
-    return `${kopf}<div class="glostar-row" onclick="openGloStarDetail(${idx})">
-      <span class="glostar-row-name">${itemName}</span>
-      <span class="glostar-row-icon">${SVG_ICONS[item.icon] || SVG_ICONS.star}</span>
-    </div>`;
-  }).join("");
+    alphabet.style.display = gruppen.length > 1 ? "" : "none";
+  }
+
+  messeGloStarVersatz();
+  verdrahteGloStarAlphabet();
+  requestAnimationFrame(aktualisiereGloStarAlphabet);
 }
 
 /* --- ISS: Live-Position ---------------------------------------------------- */
