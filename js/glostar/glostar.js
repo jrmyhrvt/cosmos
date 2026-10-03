@@ -149,6 +149,71 @@ function messeGloStarVersatz(){
   view.style.setProperty("--gs-sticky", Math.max(0, glostarStickyVersatz - innenAbstand) + "px");
 }
 
+// Erzeugt den Buchstaben-Stapel unter dem Suchfeld. Anders als bei einfachen
+// Sticky-Ueberschriften loest der naechste Buchstabe den vorigen nicht ab:
+// Alle bereits durchlaufenen Buchstaben bleiben sichtbar und bekommen je
+// einen eigenen Platz (Startposition + Index * Buchstabenhoehe). Noch nicht
+// erreichte Buchstaben liegen normal im Fluss und kleben erst oben an.
+function glostarStapelSchritt(buchstaben){
+  return buchstaben.length ? buchstaben[0].offsetHeight : 0;
+}
+
+function aktualisiereGloStarStapel(){
+  const view = document.getElementById("glostar");
+  const grid = document.getElementById("glostarGrid");
+  if(!view || !grid) return;
+  const buchstaben = Array.from(grid.querySelectorAll(".glostar-letter"));
+  if(!buchstaben.length) return;
+  const innenAbstand = parseFloat(getComputedStyle(view).paddingTop) || 0;
+  const basisCss = Math.max(0, glostarStickyVersatz - innenAbstand);
+  const schritt = glostarStapelSchritt(buchstaben);
+  const gridScreenTop = grid.getBoundingClientRect().top - view.getBoundingClientRect().top;
+
+  // Zuerst alle eigenen top-Werte entfernen: sonst behalten Buchstaben, die
+  // weiter unten liegen, einen alten Stapelplatz und wuerden beim naechsten
+  // Scrollen kurz falsch kleben. offsetTop bleibt davon unberuehrt.
+  for(const h of buchstaben) h.style.top = "";
+
+  let platz = 0;
+  for(const h of buchstaben){
+    // Natuerliche (nicht klebende) Position im sichtbaren Bereich. Der erste
+    // nicht erreichte Buchstabe beendet den Stapel.
+    const natuerlich = gridScreenTop + h.offsetTop;
+    if(natuerlich <= glostarStickyVersatz + platz * schritt + 0.5){
+      h.style.top = (basisCss + platz * schritt) + "px";
+      platz++;
+    }else{
+      break;
+    }
+  }
+}
+
+// Springt zu einer Buchstabengruppe. Der Zielbuchstabe landet auf seinem
+// Stapelplatz unter den vorangehenden Buchstaben, direkt unter dem Suchfeld.
+export function springeZuGloStarBuchstabe(letter){
+  const view = document.getElementById("glostar");
+  const grid = document.getElementById("glostarGrid");
+  if(!view || !grid) return;
+  const buchstaben = Array.from(grid.querySelectorAll(".glostar-letter"));
+  const index = buchstaben.findIndex(h => h.dataset.letter === letter);
+  if(index < 0) return;
+  const schritt = glostarStapelSchritt(buchstaben);
+  const gridScreenTop = grid.getBoundingClientRect().top - view.getBoundingClientRect().top;
+  const jetzt = gridScreenTop + buchstaben[index].offsetTop;
+  const ziel = glostarStickyVersatz + index * schritt;
+  view.scrollTo({top: Math.max(0, view.scrollTop + (jetzt - ziel)), behavior: "smooth"});
+}
+
+let glostarStapelVerdrahtet = false;
+function verdrahteGloStarStapel(){
+  if(glostarStapelVerdrahtet) return;
+  const view = document.getElementById("glostar");
+  if(!view) return;
+  view.addEventListener("scroll", aktualisiereGloStarStapel, {passive: true});
+  window.addEventListener("resize", aktualisiereGloStarStapel);
+  glostarStapelVerdrahtet = true;
+}
+
 export function renderGloStar(filterText = ""){
   const grid = document.getElementById("glostarGrid");
   const items = GLOSTAR_DATA.filter(item => {
@@ -174,21 +239,26 @@ export function renderGloStar(filterText = ""){
     else gruppen.push({buchstabe: anfang, items: [item]});
   }
 
-  grid.innerHTML = gruppen.map(gruppe => `<section class="glostar-sektion" data-letter="${escapeHtml(gruppe.buchstabe)}">
-    <div class="glostar-letter">${escapeHtml(gruppe.buchstabe)}</div>
-    ${gruppe.items.map(item => {
+  grid.innerHTML = gruppen.map(gruppe => {
+    const kopf = `<div class="glostar-letter" data-letter="${escapeHtml(gruppe.buchstabe)}" onclick="springeZuGloStarBuchstabe('${escapeHtml(gruppe.buchstabe)}')">${escapeHtml(gruppe.buchstabe)}</div>`;
+    const zeilen = gruppe.items.map((item, i) => {
       const idx = GLOSTAR_DATA.indexOf(item);
       const itemName = escapeHtml(gText(item, "name"));
       // Uebersicht zeigt nur den Begriff und sein Piktogramm - die Definition
-      // steht erst auf der Detailseite.
-      return `<div class="glostar-row" onclick="openGloStarDetail(${idx})">
+      // steht erst auf der Detailseite. Die letzte Zeile einer Gruppe traegt
+      // den Abstand zur naechsten Ueberschrift.
+      const letzte = i === gruppe.items.length - 1 ? " glostar-row--letzte" : "";
+      return `<div class="glostar-row${letzte}" onclick="openGloStarDetail(${idx})">
         <span class="glostar-row-name">${itemName}</span>
         <span class="glostar-row-icon">${SVG_ICONS[item.icon] || SVG_ICONS.star}</span>
       </div>`;
-    }).join("")}
-  </section>`).join("");
+    }).join("");
+    return kopf + zeilen;
+  }).join("");
 
   messeGloStarVersatz();
+  verdrahteGloStarStapel();
+  aktualisiereGloStarStapel();
 }
 
 /* --- ISS: Live-Position ---------------------------------------------------- */
