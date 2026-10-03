@@ -380,16 +380,7 @@ export async function addEventToCalendar(viewPrefix){
   const quelle = ev.sources?.length ? `Quelle: ${ev.sources.join(", ")}` : "";
 
   const ergebnis = await deliverEventIcs(ev, titel, [beschreibung, quelle].filter(Boolean).join("\n\n"));
-  if(!ergebnis.ok) return false;
-
-  const hinweis = document.getElementById("calendarFlash");
-  if(hinweis){
-    hinweis.textContent = ergebnis.weg === "kalender" ? t.calendar_open : t.calendar_done;
-    hinweis.classList.add("show");
-    clearTimeout(hinweis._timer);
-    hinweis._timer = setTimeout(() => hinweis.classList.remove("show"), 5200);
-  }
-  return true;
+  return ergebnis.ok;
 }
 
 // Welche Quelle liefert dieses Event? Wird direkt am Event angezeigt,

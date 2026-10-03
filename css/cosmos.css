@@ -224,5 +224,4 @@
   .calendar-btn-text small{font-size:11px;color:var(--muted);font-weight:400}
   .calendar-btn-ghost{background:transparent}
   .calendar-btn-ghost .calendar-btn-icon{font-size:12px}
-  .calendar-flash{margin-top:10px;font-size:11px;color:var(--muted);opacity:0;transition:opacity .25s ease}
-  .calendar-flash.show{opacity:1}
+
