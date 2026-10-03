@@ -99,11 +99,17 @@
   .glo-related-btn{display:inline-flex;align-items:center;gap:7px;padding:9px 14px;border-radius:12px;border:1px solid var(--border);background:rgba(255,255,255,.05);color:#fff;font-size:13px;font-weight:600;cursor:pointer;text-align:left}
   .glo-related-btn:hover{background:rgba(255,255,255,.11)}
   .glostar-grid{display:grid;grid-template-columns:repeat(auto-fill, minmax(150px, 1fr));gap:12px}
-  .glostar-card{border:1px solid var(--border);border-radius:18px;background:rgba(255,255,255,.03);padding:16px;cursor:pointer;display:flex;flex-direction:column;gap:12px}
+  .glostar-card{border:1px solid var(--border);border-radius:18px;background:rgba(255,255,255,.03);padding:16px;cursor:pointer;display:flex;flex-direction:column;gap:12px;min-width:0}
+  /* Flex-Kinder duerfen schrumpfen, sonst zwingt ein langes Wort die Karte
+     breiter als ihre Rasterspalte und der Text steht aus dem Rahmen. */
+  .glostar-card>div{min-width:0}
   .glostar-icon{width:36px;height:36px;border-radius:10px;background:rgba(255,255,255,.04);display:grid;place-items:center;border:1px solid var(--border)}
   .glostar-icon svg{width:18px;height:18px;stroke:#fff;fill:none;stroke-width:1.8}
-  .glostar-title{font-size:15px;font-weight:650;color:#fff}
-  .glostar-desc{font-size:12px;color:var(--muted);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  /* Lange Komposita (z. B. "Kosmische Hintergrundstrahlung") muessen umbrechen
+     duerfen, statt aus der Karte zu ragen. Gilt einheitlich fuer alle
+     Eintraege und alle Sprachen. */
+  .glostar-title{font-size:15px;font-weight:650;color:#fff;overflow-wrap:anywhere;word-break:break-word;hyphens:auto;-webkit-hyphens:auto}
+  .glostar-desc{font-size:12px;color:var(--muted);line-height:1.4;overflow-wrap:anywhere;word-break:break-word;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 
   .glostar-viewport{position:relative;width:100%;height:clamp(240px,42vh,430px);border-radius:20px;border:1px solid var(--border);background:#000;display:grid;place-items:center;margin-bottom:20px;overflow:hidden}
   /* Die Canvas muss exakt den Rahmen fuellen - wie beim .globe-container.

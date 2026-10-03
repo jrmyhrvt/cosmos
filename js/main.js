@@ -7,6 +7,9 @@ import { TRANSLATIONS } from "./translations.js";
 export let currentLang = 'de';
 export function setLanguage(lang) {
   currentLang = lang;
+  // Sprachattribut mitfuehren: davon haengt die richtige Silbentrennung ab
+  // (lange Komposita im Glossar brechen sonst in der falschen Sprache).
+  document.documentElement.lang = lang;
   document.querySelectorAll('.lang-btn').forEach(btn => {
     if(btn.dataset.lang === lang) btn.classList.add('active');
     else btn.classList.remove('active');
