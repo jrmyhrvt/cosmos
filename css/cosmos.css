@@ -104,7 +104,7 @@
   .glostar-list{display:flex;flex-direction:column}
   .glostar-letter{font-size:23px;font-weight:750;color:#fff;letter-spacing:.02em;margin:26px 0 4px;padding-left:2px}
   .glostar-letter:first-child{margin-top:4px}
-  .glostar-row{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:12px;cursor:pointer;min-width:0}
+  .glostar-row{display:flex;align-items:center;gap:12px;justify-content:space-between;padding:11px 12px;border-radius:12px;cursor:pointer;min-width:0}
   .glostar-row:hover{background:rgba(255,255,255,.06)}
   .glostar-row-icon{flex:0 0 auto;width:30px;height:30px;border-radius:9px;background:rgba(255,255,255,.04);display:grid;place-items:center;border:1px solid var(--border)}
   .glostar-row-icon svg{width:16px;height:16px;stroke:#fff;fill:none;stroke-width:1.8}

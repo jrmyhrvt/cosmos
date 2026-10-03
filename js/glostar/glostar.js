@@ -158,8 +158,8 @@ export function renderGloStar(filterText = ""){
       : "";
     letzterBuchstabe = buchstabe;
     return `${kopf}<div class="glostar-row" onclick="openGloStarDetail(${idx})">
-      <span class="glostar-row-icon">${SVG_ICONS[item.icon] || SVG_ICONS.star}</span>
       <span class="glostar-row-name">${itemName}</span>
+      <span class="glostar-row-icon">${SVG_ICONS[item.icon] || SVG_ICONS.star}</span>
     </div>`;
   }).join("");
 }
