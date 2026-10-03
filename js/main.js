@@ -1,7 +1,7 @@
 import { EVENTS, fetchSpaceCalendarFeed, lastSyncAt, loadEventCache, updateSyncInfo } from "./api.js";
 import { addEventToCalendar, changeOffset, closeDetail, eventState, openDetail, renderAll, renderEvents, renderHistory, resetDetail, sortEventsAutomatically, tickCountdowns, tzOffsetHours } from "./events/eventManager.js";
 import { GLOSTAR_DATA, jumpToGloStar, openGloStarDetail, renderGloStar } from "./glostar/glostar.js";
-import { initSternwort, setzeSternwortAktiv } from "./home/starWord.js";
+import { berechneSternwort } from "./home/starWord.js";
 import { pruneGlobes } from "./iss/issManager.js";
 import { issPassSprache } from "./iss/issPassView.js";
 import { TRANSLATIONS } from "./translations.js";
@@ -190,8 +190,77 @@ export function resizeStars(){
   while(sterne.length < ziel) sterne.push(sternFuellen(b, h));
   if(sterne.length > ziel) sterne.length = ziel;
 }
-window.addEventListener('resize', resizeStars);
+let formResizeTimer = 0;
+window.addEventListener('resize', () => {
+  resizeStars();
+  if(!sternFormAktiv) return;
+  clearTimeout(formResizeTimer);
+  formResizeTimer = setTimeout(starteSternFormung, 180);
+});
 resizeStars();
+
+/* --- Sternenwort: die Hintergrundsterne formen "COSMOS" -------------------
+   Auf dem Startfenster fliegen die Sterne zu den berechneten Positionen des
+   Wortes, bleiben dort schweben und funkeln. In allen anderen Ansichten loest
+   sich die Formation wieder und der normale Sternenhimmel laeuft weiter.
+   ------------------------------------------------------------------------ */
+let sternFormAktiv = false;
+
+function setzeSternForm(aktiv){
+  if(aktiv === sternFormAktiv) return;
+  if(aktiv) starteSternFormung(); else beendeSternFormung();
+}
+
+function starteSternFormung(){
+  const platz = document.getElementById("starWord");
+  if(!platz || !sterne.length) return;
+  const info = berechneSternwort(window.innerWidth);
+  platz.style.height = info.hoehe + "px";
+  const r = platz.getBoundingClientRect();
+  if(!r.width) return;
+  const ziele = info.punkte.map(p => ({ x: r.left + p.x, y: r.top + p.y }));
+
+  // Alte Zuordnungen loesen und die Sterne neu mischen, damit das Wort bei
+  // jedem Aufbau anders aussieht.
+  for(const s of sterne) delete s.form;
+  const kandidaten = sterne.slice();
+  for(let i = kandidaten.length - 1; i > 0; i--){
+    const j = (Math.random() * (i + 1)) | 0;
+    const t = kandidaten[i]; kandidaten[i] = kandidaten[j]; kandidaten[j] = t;
+  }
+  const jetzt = performance.now();
+  const n = Math.min(ziele.length, kandidaten.length);
+  for(let i = 0; i < n; i++){
+    const s = kandidaten[i];
+    const sx = (((s.x - parallaxX * s.tiefe) % sternB) + sternB) % sternB;
+    const sy = (((s.y - parallaxY * s.tiefe) % sternH) + sternH) % sternH;
+    s.form = {
+      sx, sy, ex: ziele[i].x, ey: ziele[i].y,
+      t0: jetzt + Math.random() * 900,
+      dauer: 900 + Math.random() * 1000,
+      amp: 0.6 + Math.random() * 1.6,
+      rate: 0.5 + Math.random() * 1.2,
+      ph: Math.random() * Math.PI * 2
+    };
+    s.lastX = sx; s.lastY = sy;
+  }
+  sternFormAktiv = true;
+}
+
+function beendeSternFormung(){
+  if(!sternFormAktiv) return;
+  for(const s of sterne){
+    if(!s.form) continue;
+    // An der zuletzt gezeichneten Stelle in den normalen Sternenhimmel
+    // uebergeben, damit nichts springt.
+    if(Number.isFinite(s.lastX)){
+      s.x = ((s.lastX % sternB) + sternB) % sternB;
+      s.y = ((s.lastY % sternH) + sternH) % sternH;
+    }
+    delete s.form;
+  }
+  sternFormAktiv = false;
+}
 
 window.addEventListener('mousemove', (e) => {
   pointerX = e.clientX;
@@ -215,6 +284,31 @@ export function drawStarsFixed(zeit){
   parallaxY += (targetY - parallaxY) * 0.08;
 
   for(const s of sterne){
+    // Sterne im Formationsmodus fliegen zu ihrem Platz im Wort und schweben
+    // dort sanft; der normale Sternenhimmel bleibt unberuehrt.
+    if(sternFormAktiv && s.form){
+      const f = s.form;
+      const roh = (zeit - f.t0) / f.dauer;
+      const t = roh <= 0 ? 0 : roh >= 1 ? 1 : roh;
+      const e = t * t * (3 - 2 * t);            // weich ankommen
+      let x = f.sx + (f.ex - f.sx) * e;
+      let y = f.sy + (f.ey - f.sy) * e;
+      if(t >= 1){
+        x += Math.sin(sekunden * f.rate + f.ph) * f.amp;
+        y += Math.cos(sekunden * f.rate * 0.85 + f.ph) * f.amp;
+      }
+      s.lastX = x; s.lastY = y;
+      const funkeln = 1 + s.blink * Math.sin(sekunden * s.rate + s.ph);
+      starCtx.globalAlpha = Math.max(0, Math.min(1, s.alpha * funkeln * 1.3));
+      if(s.bild){
+        const g = s.halbeGroesse;
+        starCtx.drawImage(s.bild, x - g, y - g, g * 2, g * 2);
+      } else {
+        starCtx.fillStyle = "#fff";
+        starCtx.fillRect(x, y, s.size, s.size);
+      }
+      continue;
+    }
     s.y -= s.geschwindigkeit;
     if(s.y < 0) s.y += h;
     // Der Rest wird gekappt, sonst springen die Sterne am Rand, sobald die
@@ -251,8 +345,8 @@ export function switchView(target){
   // Die Alphabet-Leiste liegt in <main> und gehoert nur zur GloStar-Ansicht.
   const scrubber = document.getElementById("glostarScrubber");
   if(scrubber) scrubber.classList.toggle("aus", target !== "glostar");
-  // Das Sternen-Wort animiert nur auf dem Startfenster.
-  setzeSternwortAktiv(target === "home");
+  // Das Sternen-Wort bildet sich nur auf dem Startfenster.
+  setzeSternForm(target === "home");
   return view;
 }
 
@@ -272,7 +366,7 @@ loadEventCache();
 sortEventsAutomatically();
 renderAll();
 renderGloStar();
-initSternwort();
+setzeSternForm(true);
 fetchSpaceCalendarFeed();
 
 /* --- Automatische Aktualisierung -----------------------------------------
