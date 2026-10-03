@@ -24,9 +24,21 @@ function icsText(value){
     .replace(/\r\n|\r|\n/g, "\\n");
 }
 
-// Zeitstempel als UTC, Format YYYYMMDDTHHMMSSZ.
+// Zeitstempel als UTC, Format YYYYMMDDTHHMMSSZ. Pflicht fuer DTSTAMP.
 function icsZeit(ms){
   return new Date(ms).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+}
+
+// Zeitstempel in der lokalen Zeit des Geraets, OHNE Z-Suffix ("floating").
+// iOS ordnet eine solche Zeit der Geraete-Zeitzone zu und legt den Termin an.
+// Ein UTC-Wert (mit Z) liess den Termin auf Apple-Geraeten beim Antippen von
+// "Hinzufuegen" wirkungslos - der Kalender zeigte die Vorschau, tat aber
+// nichts. Ganztags war davon nicht betroffen, weil dort nur ein Datum steht.
+function icsZeitLokal(ms){
+  const d = new Date(ms);
+  const p = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}`
+    + `T${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
 }
 
 // Nur Datum, Format YYYYMMDD - fuer ganztaegige Ereignisse.
@@ -78,20 +90,28 @@ export function buildEventIcs(ev, titel, beschreibung, quelleUrl){
   // zeigen die Quellenangabe gar nicht.
   const vollText = quelleUrl ? `${beschreibung}\n\nQuelle: ${quelleUrl}` : beschreibung;
 
-  const zeilen = [
+  // Kopf der Datei. Ganztag behaelt METHOD/X-WR-CALNAME wie bisher (dieser
+  // Weg funktioniert auf Apple-Geraeten). Fuer zeitgebundene Einzeltermine
+  // werden die beiden Abo-Felder bewusst weggelassen: sie kennzeichnen einen
+  // ganzen Kalender, nicht einen einzelnen Termin, und stoerten iOS beim
+  // Hinzufuegen.
+  const kopf = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
     "PRODID:-//COSMOS//Astronomie//DE",
     "CALSCALE:GREGORIAN",
-    "METHOD:PUBLISH",
-    "X-WR-CALNAME:COSMOS",
+  ];
+  if(ganztag) kopf.push("METHOD:PUBLISH", "X-WR-CALNAME:COSMOS");
+
+  const zeilen = [
+    ...kopf,
     "BEGIN:VEVENT",
     `UID:${uid}`,
     `DTSTAMP:${icsZeit(Date.now())}`,
     ganztag ? `DTSTART;VALUE=DATE:${icsDatum(startMs)}`
-            : `DTSTART:${icsZeit(startMs)}`,
+            : `DTSTART:${icsZeitLokal(startMs)}`,
     ganztag ? `DTEND;VALUE=DATE:${icsDatum(end)}`
-            : `DTEND:${icsZeit(end)}`,
+            : `DTEND:${icsZeitLokal(end)}`,
     `SUMMARY:${icsText(titel)}`,
     `DESCRIPTION:${icsText(vollText)}`,
     "STATUS:CONFIRMED",
