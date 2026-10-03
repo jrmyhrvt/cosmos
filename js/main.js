@@ -212,6 +212,8 @@ resizeStars();
    Wort-Sterne blenden sanft als normale Sterne zurueck.
    ------------------------------------------------------------------------ */
 let sternFormAktiv = false;
+let wortMitte = null;       // Zentrum des Wortes (fuer das Wegfliegen)
+let wortHalb = null;        // halbe Ausdehnung des Wortes
 const WORT_HELL = 2.5;      // Helligkeitsfaktor der Sterne, die das Wort bilden
 const WORT_GROESSE = 1.35;  // Groessenfaktor der Sterne, die das Wort bilden
 const WORT_LOESE_MS = 650;  // Dauer des Uebergangs zurueck zum Sternenhimmel
@@ -235,6 +237,20 @@ function starteSternFormung(){
   const r = platz.getBoundingClientRect();
   if(!r.width) return;
   const ziele = info.punkte.map(p => ({ x: r.left + p.x, y: r.top + p.y }));
+
+  // Zentrum und Ausdehnung des Wortes merken, damit sich die Sterne beim
+  // Verlassen in alle Richtungen vom Wortzentrum wegbewegen.
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for(const p of ziele){
+    if(p.x < minX) minX = p.x;
+    if(p.x > maxX) maxX = p.x;
+    if(p.y < minY) minY = p.y;
+    if(p.y > maxY) maxY = p.y;
+  }
+  if(ziele.length){
+    wortMitte = { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
+    wortHalb = { w: Math.max(1, (maxX - minX) / 2), h: Math.max(1, (maxY - minY) / 2) };
+  }
 
   // Falls noetig zusaetzliche Wort-Sterne erzeugen. Sie kommen aus einem
   // eigenen Vorrat, damit der Hintergrund nicht geleert wird.
@@ -271,14 +287,19 @@ function starteSternFormung(){
 function beendeSternFormung(){
   if(!sternFormAktiv) return;
   const jetzt = performance.now();
-  const cx = sternB / 2, cy = sternH / 2;
+  const cx = wortMitte ? wortMitte.x : sternB / 2;
+  const cy = wortMitte ? wortMitte.y : sternH / 2;
+  // Die flache Wortform auf einen Kreis umrechnen, damit die Sterne nicht nur
+  // nach oben, sondern in alle Richtungen gleichzeitig wegfliegen.
+  const hw = wortHalb ? wortHalb.w : 1;
+  const hh = wortHalb ? wortHalb.h : 1;
   for(const s of wortSterne){
     if(!s.form) continue;
-    // Jeder Stern fliegt vom Wort weg nach aussen und blendet dabei aus. So
-    // loest sich "COSMOS" beim Ansichtswechsel auf, ohne dass der normale
-    // Sternenhimmel zusaetzlich mit Sternen ueberflutet wird.
-    const dx = s.lastX - cx, dy = s.lastY - cy;
-    const winkel = Math.atan2(dy, dx) + (Math.random() - 0.5) * 1.0;
+    // Jeder Stern fliegt vom Wortzentrum weg nach aussen und blendet dabei aus.
+    // So loest sich "COSMOS" beim Ansichtswechsel in alle Richtungen auf, ohne
+    // dass der normale Sternenhimmel mit Sternen ueberflutet wird.
+    const dx = (s.lastX - cx) / hw, dy = (s.lastY - cy) / hh;
+    const winkel = Math.atan2(dy, dx) + (Math.random() - 0.5) * 0.7;
     const tempo = 0.2 + Math.random() * 0.5;   // Pixel pro Millisekunde
     s.frei = {
       t0: jetzt,
