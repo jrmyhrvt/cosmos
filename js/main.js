@@ -142,7 +142,7 @@ export function neuerStern(farbe, schicht, tiefe, x, y){
 // Dichte an die Bildflaeche binden: ein grosser Bildschirm soll mehr Sterne
 // bekommen, nicht dieselben paar hundert wie ein Telefon.
 export function sternZielzahl(flaeche){
-  return Math.max(700, Math.min(4200, Math.round(flaeche / 420)));
+  return Math.max(900, Math.min(5200, Math.round(flaeche / 320)));
 }
 
 export function sternFuellen(b, h){
@@ -299,9 +299,11 @@ export function drawStarsFixed(zeit){
       }
       s.lastX = x; s.lastY = y;
       const funkeln = 1 + s.blink * Math.sin(sekunden * s.rate + s.ph);
-      starCtx.globalAlpha = Math.max(0, Math.min(1, s.alpha * funkeln * 1.3));
+      // Die Wortsterne deutlich heller und etwas groesser zeichnen, damit sich
+      // das Wort klar vom restlichen Himmel abhebt.
+      starCtx.globalAlpha = Math.max(0, Math.min(1, s.alpha * funkeln * 2.1));
       if(s.bild){
-        const g = s.halbeGroesse;
+        const g = s.halbeGroesse * 1.3;
         starCtx.drawImage(s.bild, x - g, y - g, g * 2, g * 2);
       } else {
         starCtx.fillStyle = "#fff";
@@ -316,7 +318,10 @@ export function drawStarsFixed(zeit){
     const drawX = (((s.x - parallaxX * s.tiefe) % b) + b) % b;
     const drawY = (((s.y - parallaxY * s.tiefe) % h) + h) % h;
     const funkeln = 1 + s.blink * Math.sin(sekunden * s.rate + s.ph);
-    starCtx.globalAlpha = Math.max(0, Math.min(1, s.alpha * funkeln));
+    // Waehrend der Wortbildung den uebrigen Himmel etwas zuruecknehmen, damit
+    // das Wort nicht von gleich hellen Sternen ueberstrahlt wird.
+    const daempfung = sternFormAktiv ? 0.55 : 1;
+    starCtx.globalAlpha = Math.max(0, Math.min(1, s.alpha * funkeln * daempfung));
     if(s.bild){
       const g = s.halbeGroesse;
       starCtx.drawImage(s.bild, drawX - g, drawY - g, g * 2, g * 2);

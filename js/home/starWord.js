@@ -39,7 +39,7 @@ export function berechneSternwort(breite){
   hx.fillText(WORT, b / 2, rand + hoch);
 
   const daten = hx.getImageData(0, 0, hilfe.width, hilfe.height).data;
-  const schritt = Math.max(4, Math.round(S / 30));
+  const schritt = Math.max(3, Math.round(S / 46));
   const punkte = [];
   for(let y = 0; y < hilfe.height; y += schritt){
     for(let x = 0; x < hilfe.width; x += schritt){
