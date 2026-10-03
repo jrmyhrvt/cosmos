@@ -72,16 +72,22 @@ export function sternBild(farbe, strahlen){
   x.arc(m, m, m, 0, Math.PI * 2);
   x.fill();
   if(strahlen){
-    // Vier Lichtstrahlen, wie sie eine Linse oder die Luft erzeugt
-    const kante = x.createLinearGradient(0, m, S, m);
-    kante.addColorStop(0,   "rgba(255,255,255,0)");
-    kante.addColorStop(0.5, "rgba(255,255,255,.85)");
-    kante.addColorStop(1,   "rgba(255,255,255,0)");
-    x.fillStyle = kante;
+    // Vier Lichtstrahlen, wie sie eine Linse oder die Luft erzeugt. Den
+    // Farbverlauf erst NACH dem Verschieben anlegen und in lokalen
+    // Koordinaten: Verlaeufe werden beim Zeichnen von der aktuellen
+    // Transformation miterfasst. Ein vorher angelegter Verlauf rutscht dadurch
+    // um die halbe Bildbreite und die Strahlen leuchteten nach rechts und
+    // unten staerker als nach links und oben. In lokalen Koordinaten sitzt die
+    // helle Mitte in jeder der beiden Achsen genau auf dem Stern.
     for(let i = 0; i < 2; i++){
       x.save();
       x.translate(m, m);
       x.rotate(i * Math.PI / 2);
+      const kante = x.createLinearGradient(-m, 0, m, 0);
+      kante.addColorStop(0,   "rgba(255,255,255,0)");
+      kante.addColorStop(0.5, "rgba(255,255,255,.85)");
+      kante.addColorStop(1,   "rgba(255,255,255,0)");
+      x.fillStyle = kante;
       x.beginPath();
       x.moveTo(-m, 0); x.lineTo(0, -2.6); x.lineTo(m, 0); x.lineTo(0, 2.6);
       x.closePath();
