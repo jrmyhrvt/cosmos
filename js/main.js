@@ -217,6 +217,17 @@ let wortHalb = null;        // halbe Ausdehnung des Wortes
 const WORT_HELL = 2.5;      // Helligkeitsfaktor der Sterne, die das Wort bilden
 const WORT_GROESSE = 1.35;  // Groessenfaktor der Sterne, die das Wort bilden
 const WORT_LOESE_MS = 650;  // Dauer des Uebergangs zurueck zum Sternenhimmel
+// Steilheit der Anflugkurve: erst sanft los, sichtbar beschleunigen und kurz
+// vor dem Wort kraeftig abbremsen. 2 = weich, hoeher = staerkerer Effekt.
+const WORT_WEG_EXP = 4;
+// Anflugkurve fuer jeden Wort-Stern. In der ersten Haelfte nimmt die
+// Geschwindigkeit zu (beschleunigen), in der zweiten wieder ab. Wegen des
+// hohen Exponenten kriechen die Sterne am Ende nur noch und schweben so ins
+// Wort, statt hart anzukommen.
+function wortWeg(t){
+  if(t < 0.5) return Math.pow(2 * t, WORT_WEG_EXP) / 2;
+  return 1 - Math.pow(2 - 2 * t, WORT_WEG_EXP) / 2;
+}
 
 function setzeSternForm(aktiv){
   if(aktiv === sternFormAktiv) return;
@@ -363,13 +374,16 @@ export function drawStarsFixed(zeit){
       const f = s.form;
       const roh = (zeit - f.t0) / f.dauer;
       const t = roh <= 0 ? 0 : roh >= 1 ? 1 : roh;
-      const e = t * t * (3 - 2 * t);            // weich ankommen
+      const e = wortWeg(t);                     // beschleunigen, dann weich abbremsen
       let x = f.sx + (f.ex - f.sx) * e;
       let y = f.sy + (f.ey - f.sy) * e;
-      if(t >= 1){
-        x += Math.sin(sekunden * f.rate + f.ph) * f.amp;
-        y += Math.cos(sekunden * f.rate * 0.85 + f.ph) * f.amp;
-      }
+      // Kurz vor dem Wort setzt ein sanftes Schweben ein, das in die dauerhafte
+      // Bewegung uebergeht. So gleiten die Sterne in die Buchstaben, statt hart
+      // anzukommen.
+      const schwebeRoh = (t - 0.6) / 0.4;
+      const schwebe = schwebeRoh <= 0 ? 0 : schwebeRoh >= 1 ? 1 : schwebeRoh * schwebeRoh * (3 - 2 * schwebeRoh);
+      x += Math.sin(sekunden * f.rate + f.ph) * f.amp * schwebe;
+      y += Math.cos(sekunden * f.rate * 0.85 + f.ph) * f.amp * schwebe;
       s.lastX = x; s.lastY = y;
       const funkeln = 1 + s.blink * Math.sin(sekunden * s.rate + s.ph);
       starCtx.globalAlpha = Math.max(0, Math.min(1, s.alpha * funkeln * WORT_HELL));
