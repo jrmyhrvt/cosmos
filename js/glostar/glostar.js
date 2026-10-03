@@ -139,16 +139,27 @@ export function renderGloStar(filterText = ""){
     return (itemName + " " + itemSum).includes(filterText.toLowerCase());
   });
 
-  grid.innerHTML = items.map((item)=>{
+  // Alphabetisch nach dem in der aktuellen Sprache sichtbaren Begriff. Die
+  // Sortierung ist sprachabhaengig, weil im Deutschen, Englischen und
+  // Spanischen unterschiedliche Namen sichtbar sind.
+  items.sort((a, b) => gText(a, "name").localeCompare(gText(b, "name"), currentLang, {sensitivity: "base"}));
+
+  let letzterBuchstabe = "";
+  grid.innerHTML = items.map(item => {
     const idx = GLOSTAR_DATA.indexOf(item);
-    const itemName = escapeHtml(gText(item, "name"));
-    const itemSum = escapeHtml(gText(item, "sum"));
-    return `<div class="glostar-card" onclick="openGloStarDetail(${idx})">
-      <div class="glostar-icon">${SVG_ICONS[item.icon] || SVG_ICONS.star}</div>
-      <div>
-        <div class="glostar-title">${itemName}</div>
-        <div class="glostar-desc">${itemSum}</div>
-      </div>
+    const rohName = gText(item, "name");
+    const itemName = escapeHtml(rohName);
+    // Uebersicht zeigt nur den Begriff und sein Piktogramm - die Definition
+    // steht erst auf der Detailseite. Ein neuer Anfangsbuchstabe bekommt eine
+    // groessere Ueberschrift, damit die alphabetische Ordnung lesbar bleibt.
+    const buchstabe = (rohName.trim()[0] || "#").toUpperCase();
+    const kopf = buchstabe !== letzterBuchstabe
+      ? `<div class="glostar-letter">${escapeHtml(buchstabe)}</div>`
+      : "";
+    letzterBuchstabe = buchstabe;
+    return `${kopf}<div class="glostar-row" onclick="openGloStarDetail(${idx})">
+      <span class="glostar-row-icon">${SVG_ICONS[item.icon] || SVG_ICONS.star}</span>
+      <span class="glostar-row-name">${itemName}</span>
     </div>`;
   }).join("");
 }
