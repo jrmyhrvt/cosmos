@@ -370,12 +370,12 @@ export function drawGlobeFrame(instance, world){
 
   // Die Markierung wird nach dem Kugel-Clip gezeichnet, damit sie am Rand
   // nicht abgeschnitten wird.
-  if(issPoint){
-    // Liegt die Station gerade hinter dem Horizont, zeigt der Punkt nur
-    // gedimmt durch die Erde hindurch - so weiss man jederzeit, wo sie ist.
-    const vorn = globePointVisibility(instance, currentIssLon, currentIssLat) > 0;
-    const alpha = vorn ? 1 : 0.34;
-    const pulse = vorn ? 0.5 + 0.5 * Math.sin(Date.now() / 520) : 0;
+  // Liegt die Station gerade hinter dem Horizont, wird die Markierung ganz
+  // ausgeblendet - sie soll nicht durch die Erde scheinen.
+  const issVorn = issPoint ? globePointVisibility(instance, currentIssLon, currentIssLat) > 0 : false;
+  if(issPoint && issVorn){
+    const alpha = 1;
+    const pulse = 0.5 + 0.5 * Math.sin(Date.now() / 520);
     const fontSize = instance.px(10);
 
     // Die Station sitzt auf ihrer Bahn: der Punkt wandert denselben Weg wie
