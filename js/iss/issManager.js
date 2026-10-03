@@ -19,9 +19,15 @@ export function updateIssReadouts(){
   const latEl = document.getElementById("detailLat");
   const lonEl = document.getElementById("detailLon");
   const altEl = document.getElementById("detailAlt");
+  const speedEl = document.getElementById("detailSpeed");
   if(latEl) latEl.textContent = formatIssLat();
   if(lonEl) lonEl.textContent = formatIssLon();
   if(altEl) altEl.textContent = Number.isFinite(currentIssAlt) ? `${Math.round(currentIssAlt)} km` : "--";
+  // wheretheiss.at liefert die Bahngeschwindigkeit in km/h (rund 27.600).
+  // In der Sprache des Nutzers mit Tausenderpunkt.
+  if(speedEl) speedEl.textContent = Number.isFinite(currentIssVelocity)
+    ? `${Math.round(currentIssVelocity).toLocaleString(currentLang)} km/h`
+    : "--";
 
   const status = `<strong>ISS</strong> ${formatIssLat()} / ${formatIssLon()}` +
     (Number.isFinite(currentIssAlt) ? ` · ${Math.round(currentIssAlt)} km` : "");

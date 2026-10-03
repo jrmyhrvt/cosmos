@@ -303,7 +303,10 @@ export function openDetail(eventId, viewPrefix){
         <div class="detail-card"><label>${t.lat}</label><val id="detailLat">${formatIssLat()}</val></div>
         <div class="detail-card"><label>${t.lon}</label><val id="detailLon">${formatIssLon()}</val></div>
         <div class="detail-card"><label>${t.altitude}</label><val id="detailAlt">--</val></div>
-        <div class="detail-card"><label>${t.status}</label><val>${eventStatus}</val></div>
+        <!-- Live-Geschwindigkeit der Station, im selben Takt wie Position und
+             Hoehe (alle 5 s) aktualisiert. -->
+        <div class="detail-card"><label>${t.velocity}</label><val id="detailSpeed">--</val></div>
+        <div class="detail-card" style="grid-column:1 / -1"><label>${t.status}</label><val>${eventStatus}</val></div>
       </div>
       <p style="color:var(--muted);margin-top:15px;line-height:1.5">${eventDesc}</p>
       ${renderSourceBlock(e)}
