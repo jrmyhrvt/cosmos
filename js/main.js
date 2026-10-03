@@ -247,6 +247,9 @@ export function switchView(target){
   resetDetail(target);
   pruneGlobes();
   renderAll();
+  // Die Alphabet-Leiste liegt in <main> und gehoert nur zur GloStar-Ansicht.
+  const scrubber = document.getElementById("glostarScrubber");
+  if(scrubber) scrubber.classList.toggle("aus", target !== "glostar");
   return view;
 }
 

@@ -160,6 +160,11 @@ export function springeZuGloStarBuchstabe(letter, sanft = true){
   if(!view || !grid) return;
   const sektion = grid.querySelector(`.glostar-sektion[data-letter="${letter}"]`);
   if(!sektion) return;
+  // Den gewaehlten Buchstaben sofort hervorheben und bis zum naechsten
+  // eigenen Scrollen des Nutzers festhalten.
+  glostarGewaehlt = letter;
+  glostarProgrammatischBis = Date.now() + (sanft ? 800 : 400);
+  markiereGloStarBuchstabe(letter);
   const gridScreenTop = grid.getBoundingClientRect().top - view.getBoundingClientRect().top;
   const jetzt = gridScreenTop + sektion.offsetTop;
   view.scrollTo({
@@ -173,6 +178,20 @@ export function springeZuGloStarBuchstabe(letter, sanft = true){
    springt zur Gruppe. Die Liste bleibt daneben frei, weil die Leiste im
    linken Aussenabstand der Ansicht sitzt. */
 let glostarScrubberVerdrahtet = false;
+// Merkt sich den zuletzt angetippten bzw. gezogenen Buchstaben. Er bleibt
+// hervorgehoben, bis der Nutzer selbst wieder scrollt - so stimmt die
+// Anzeige auch dann, wenn ein Abschnitt zu kurz ist, um seine Ueberschrift
+// genau unter das Suchfeld zu bringen.
+let glostarGewaehlt = null;
+// Zeitfenster, in dem Scroll-Ereignisse vom eigenen Sprung stammen und die
+// Auswahl daher nicht als Nutzer-Scrollen gewertet wird.
+let glostarProgrammatischBis = 0;
+
+function markiereGloStarBuchstabe(letter){
+  const el = document.getElementById("glostarScrubber");
+  if(!el) return;
+  for(const k of el.children) k.classList.toggle("active", k.dataset.letter === letter);
+}
 
 function aktualisiereGloStarScrubber(){
   const view = document.getElementById("glostar");
@@ -181,29 +200,46 @@ function aktualisiereGloStarScrubber(){
   const el = document.getElementById("glostarScrubber");
   if(!view || !grid || !el) return;
   const imDetail = detail && detail.classList.contains("active");
-  el.classList.toggle("aus", !!imDetail);
-  if(imDetail) return;
+  const aktiveAnsicht = view.classList.contains("active");
+  el.classList.toggle("aus", !aktiveAnsicht || !!imDetail);
+  // Die Leiste liegt ausserhalb des Scrollinhalts direkt in <main> und bleibt
+  // senkrecht in der Mitte der Ansicht stehen - unabhaengig davon, ob die
+  // Ansicht gerade sichtbar ist.
+  el.style.top = (view.clientHeight / 2) + "px";
+  if(imDetail || !aktiveAnsicht) return;
   const vt = view.getBoundingClientRect().top;
   let aktiv = "";
   for(const s of grid.querySelectorAll(".glostar-sektion")){
     if(s.getBoundingClientRect().top - vt <= glostarStickyVersatz + 1) aktiv = s.dataset.letter;
     else break;
   }
+  if(glostarGewaehlt){
+    // Ein angetippter/gezogener Buchstabe bleibt markiert, auch wenn sich die
+    // Ansicht dabei nicht weiter bewegt.
+    aktiv = glostarGewaehlt;
+  } else {
+    // Ganz unten den letzten Abschnitt hervorheben, dessen Oberkante die
+    // Schwelle nicht mehr erreichen kann.
+    const maxScroll = view.scrollHeight - view.clientHeight;
+    if(maxScroll > 0 && maxScroll - view.scrollTop <= 2){
+      const letzte = grid.querySelector(".glostar-sektion:last-child");
+      if(letzte) aktiv = letzte.dataset.letter;
+    }
+  }
   for(const k of el.children) k.classList.toggle("active", k.dataset.letter === aktiv);
-  // Senkrecht in der sichtbaren Mitte halten, obwohl die Leiste im
-  // scrollenden Inhalt liegt.
-  el.style.top = (view.scrollTop + view.clientHeight / 2) + "px";
 }
 
 function baueGloStarScrubber(gruppen){
   const view = document.getElementById("glostar");
   if(!view) return;
+  const host = view.parentElement || view;
   let el = document.getElementById("glostarScrubber");
   if(!el){
     el = document.createElement("div");
     el.id = "glostarScrubber";
     el.className = "glostar-scrubber";
-    view.appendChild(el);
+    if(host !== view) el.classList.add("aus");
+    host.appendChild(el);
   }
   el.innerHTML = gruppen.map(g => `<span class="glostar-scrubber-letter" data-letter="${escapeHtml(g.buchstabe)}">${escapeHtml(g.buchstabe)}</span>`).join("");
   verdrahteGloStarScrubber(el);
@@ -214,27 +250,39 @@ function verdrahteGloStarScrubber(el){
   const view = document.getElementById("glostar");
   if(!view) return;
   const waehle = clientY => {
-    const r = el.getBoundingClientRect();
-    const anzahl = el.children.length;
-    if(!anzahl || !r.height) return;
-    const idx = Math.max(0, Math.min(anzahl - 1, Math.round((clientY - r.top) / (r.height / anzahl))));
-    springeZuGloStarBuchstabe(el.children[idx].dataset.letter, false);
+    let naechster = null, abstand = Infinity;
+    for(const k of el.children){
+      const r = k.getBoundingClientRect();
+      const d = Math.abs(clientY - (r.top + r.height / 2));
+      if(d < abstand){ abstand = d; naechster = k; }
+    }
+    if(naechster) springeZuGloStarBuchstabe(naechster.dataset.letter, false);
   };
   el.addEventListener("pointerdown", e => {
     e.preventDefault();
-    el.setPointerCapture(e.pointerId);
+    // setPointerCapture wirft bei synthetischen Events (z. B. in Tests), die
+    // Auswahl soll trotzdem greifen.
+    try{ el.setPointerCapture(e.pointerId); }catch{}
     waehle(e.clientY);
   });
   el.addEventListener("pointermove", e => {
     if(e.buttons) waehle(e.clientY);
   });
-  view.addEventListener("scroll", aktualisiereGloStarScrubber, {passive: true});
+  view.addEventListener("scroll", () => {
+    // Nur echtes Scrollen des Nutzers loest die Auswahl wieder; die
+    // Scroll-Ereignisse des eigenen Sprungs fallen in das Zeitfenster.
+    if(Date.now() > glostarProgrammatischBis) glostarGewaehlt = null;
+    aktualisiereGloStarScrubber();
+  }, {passive: true});
   window.addEventListener("resize", aktualisiereGloStarScrubber);
   glostarScrubberVerdrahtet = true;
 }
 
 export function renderGloStar(filterText = ""){
   const grid = document.getElementById("glostarGrid");
+  // Bei einem Neuaufbau (Suche, Sprachwechsel) gibt es die alte Auswahl
+  // moeglicherweise nicht mehr.
+  glostarGewaehlt = null;
   const items = GLOSTAR_DATA.filter(item => {
     const itemName = gText(item, "name").toLowerCase();
     const itemSum = gText(item, "sum").toLowerCase();
