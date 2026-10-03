@@ -271,11 +271,22 @@ function starteSternFormung(){
 function beendeSternFormung(){
   if(!sternFormAktiv) return;
   const jetzt = performance.now();
+  const cx = sternB / 2, cy = sternH / 2;
   for(const s of wortSterne){
     if(!s.form) continue;
-    // Die Wort-Sterne bleiben an ihrer Stelle und blenden weich aus, wahrend
-    // der normale Sternenhimmel unveraendert weiterlaeuft.
-    s.frei = { t0: jetzt, dauer: WORT_LOESE_MS, x0: s.lastX, y0: s.lastY };
+    // Jeder Stern fliegt vom Wort weg nach aussen und blendet dabei aus. So
+    // loest sich "COSMOS" beim Ansichtswechsel auf, ohne dass der normale
+    // Sternenhimmel zusaetzlich mit Sternen ueberflutet wird.
+    const dx = s.lastX - cx, dy = s.lastY - cy;
+    const winkel = Math.atan2(dy, dx) + (Math.random() - 0.5) * 1.0;
+    const tempo = 0.2 + Math.random() * 0.5;   // Pixel pro Millisekunde
+    s.frei = {
+      t0: jetzt,
+      dauer: WORT_LOESE_MS * (0.7 + Math.random() * 0.7),
+      x0: s.lastX, y0: s.lastY,
+      vx: Math.cos(winkel) * tempo,
+      vy: Math.sin(winkel) * tempo
+    };
     delete s.form;
   }
   sternFormAktiv = false;
@@ -351,20 +362,24 @@ export function drawStarsFixed(zeit){
       continue;
     }
     if(s.frei){
-      const p = Math.min(1, (zeit - s.frei.t0) / s.frei.dauer);
+      const dt = zeit - s.frei.t0;
+      const p = Math.min(1, dt / s.frei.dauer);
       if(p >= 1){
         delete s.frei;
         continue;
       }
+      // Nach aussen wegfliegen und dabei weich ausblenden.
+      const x = s.frei.x0 + s.frei.vx * dt;
+      const y = s.frei.y0 + s.frei.vy * dt;
       const funkeln = 1 + s.blink * Math.sin(sekunden * s.rate + s.ph);
       const groesse = 1 + (WORT_GROESSE - 1) * (1 - p);
       starCtx.globalAlpha = Math.max(0, Math.min(1, s.alpha * funkeln * WORT_HELL * (1 - p)));
       if(s.bild){
         const g = s.halbeGroesse * groesse;
-        starCtx.drawImage(s.bild, s.frei.x0 - g, s.frei.y0 - g, g * 2, g * 2);
+        starCtx.drawImage(s.bild, x - g, y - g, g * 2, g * 2);
       } else {
         starCtx.fillStyle = "#fff";
-        starCtx.fillRect(s.frei.x0, s.frei.y0, s.size * groesse, s.size * groesse);
+        starCtx.fillRect(x, y, s.size * groesse, s.size * groesse);
       }
     }
   }
