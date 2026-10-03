@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="glow" cx="256" cy="236" r="235" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#a9d4ff" stop-opacity="0.30"/>
+      <stop offset="0.45" stop-color="#7fb8ff" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="11"/>
+    </filter>
+    <g id="spark">
+      <path d="M0,-14 C1.2,-4.5 4.5,-1.2 14,0 C4.5,1.2 1.2,4.5 0,14 C-1.2,4.5 -4.5,1.2 -14,0 C-4.5,-1.2 -1.2,-4.5 0,-14 Z"/>
+    </g>
+  </defs>
+
+  <rect width="512" height="512" fill="#000000"/>
+  <circle cx="256" cy="236" r="235" fill="url(#glow)"/>
+
+  <g transform="translate(256,256) scale(15) translate(-12,-11.51)">
+    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
+             fill="#ffffff" filter="url(#soft)" opacity="0.55"/>
+  </g>
+  <g transform="translate(256,256) scale(15) translate(-12,-11.51)">
+    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
+             fill="#ffffff" stroke="#ffffff" stroke-width="0.7" stroke-linejoin="round"/>
+  </g>
+
+  <use href="#spark" transform="translate(400,120) scale(0.95)" fill="#ffffff" opacity="0.9"/>
+  <use href="#spark" transform="translate(116,398) scale(0.62)" fill="#ffffff" opacity="0.7"/>
+  <use href="#spark" transform="translate(414,376) scale(0.5)" fill="#ffffff" opacity="0.6"/>
+</svg>
