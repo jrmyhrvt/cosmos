@@ -37,6 +37,26 @@ export function escapeHtml(value) {
     .replace(/'/g, "&#039;");
 }
 
+// Echtes NASA-ISS-Modell (glTF). Die Datei ist gross, deshalb werden sowohl das
+// Viewer-Skript als auch das Modell erst geladen, wenn die ISS-Detailseite
+// wirklich offen ist - alle anderen Seiten bleiben dadurch leicht. Das Skript
+// kommt von einem CDN, die Modelldatei liegt im Repo (CORS bei NASA erlaubt nur
+// die eigene Domain, ein direkter Zugriff aus der App waere blockiert).
+const MODEL_VIEWER_VERSION = "4.3.1";
+let modelViewerLaden = null;
+function ladeModelViewer(){
+  if(modelViewerLaden) return modelViewerLaden;
+  modelViewerLaden = new Promise((fertig, fehler) => {
+    const s = document.createElement("script");
+    s.type = "module";
+    s.src = `https://cdn.jsdelivr.net/npm/@google/model-viewer@${MODEL_VIEWER_VERSION}/dist/model-viewer.min.js`;
+    s.onload = fertig;
+    s.onerror = () => { modelViewerLaden = null; fehler(new Error("model-viewer")); };
+    document.head.appendChild(s);
+  });
+  return modelViewerLaden;
+}
+
 /* --------------------------------------------------------------------------
    Datum: eine Stelle im Code entscheidet, wie jedes Datum einer Quelle
    gelesen wird. Kein Event darf nur wegen eines unbekannten Datumsformats
@@ -260,6 +280,14 @@ export function openDetail(eventId, viewPrefix){
   if(e.isPermanentLive){
     detailEl.innerHTML = `
       <div class="detail-backbar"><button class="back-btn" onclick="closeDetail('${viewPrefix}')">← ${t.back}</button></div>
+      <!-- Echtes NASA-3D-Modell der Station ueber der Karte. Erst hier wird der
+           vergleichsweise grosse Viewer geladen (siehe ladeModelViewer). -->
+      <div class="iss-model">
+        <model-viewer src="assets/iss/ISS_stationary.glb"
+          alt="${t.iss_model_alt}"
+          camera-controls auto-rotate auto-rotate-delay="1500" rotation-per-second="14deg"
+          shadow-intensity="1" exposure="1" reveal="auto"></model-viewer>
+      </div>
       <div class="globe-container">
         <canvas id="globeCanvasDetail" width="400" height="320"></canvas>
         <div class="globe-status" id="globeIssStatus"><strong>ISS</strong> -- / --</div>
@@ -315,6 +343,9 @@ export function openDetail(eventId, viewPrefix){
     // Etwas kleiner als die volle Hoehe: am Kugelrand schwebt die Station
     // 6,6 % ausserhalb und waere sonst vom Rahmen abgeschnitten.
     mountGlobe("globeCanvasDetail", "globeIssStatus", {radiusFactor: 0.45, autoRotate: true});
+    // Viewer-Skript erst jetzt nachladen; das Modell selbst laedt das Element
+    // anhand seines src-Attributs.
+    ladeModelViewer().catch(() => {});
     // Die Zoom-Knoepfe arbeiten direkt auf dem Globus-Zustand. addEventListener
     // statt onclick, damit die Funktionen nicht auch noch ans Fenster gehaengt
     // werden muessen.
