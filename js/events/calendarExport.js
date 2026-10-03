@@ -125,41 +125,53 @@ function icsDateiname(ev, titel){
 
 // Der MIME-Typ ist auf Apple-Geraeten entscheidend und darf KEIN charset
 // tragen. Mit "text/calendar;charset=utf-8" (oder einem Byte-Order-Mark am
-// Dateianfang) erkennt iOS die Datei nicht als Kalendereintrag: Das
-// Teilen-Fenster bietet "Kalender" gar nicht erst an, und aus Safari heraus
-// landet sie nur noch als Datei im Ordner Downloads. Genau das war das
-// gemeldete Verhalten.
+// Dateianfang) erkennt iOS die Datei nicht als Kalendereintrag.
 const ICS_MIME = "text/calendar";
 
-// Reihenfolge ist hier wichtig und nicht willkuerlich:
+// Erkennt iPhone und iPad - auch das iPad im Desktop-Modus, das sich sonst
+// als Mac ausgibt (MacIntel mit Touch-Punkten).
+function istApfelMobil(){
+  const ua = navigator.userAgent || "";
+  return /iPhone|iPad|iPod/.test(ua)
+    || (navigator.platform === "MacIntel" && (navigator.maxTouchPoints || 0) > 1);
+}
+
+// Auf iPhone und iPad fuehrt genau ein Weg zum nativen Kalender-Fenster:
+// Man oeffnet die .ics wie eine Webseite, statt sie herunterzuladen. Safari
+// gibt eine Ressource vom Typ text/calendar dann an die Kalender-App weiter,
+// die ihr Fenster mit "Hinzufuegen" zeigt - Datum, Titel und Erinnerung kommen
+// direkt aus den Angaben der App. Der Teilen-Dialog ist ein anderer Weg und
+// wird hier bewusst nicht mehr benutzt.
 //
-//  1. Teilen (navigator.share) - auf iPhone und iPad der einzige Weg, der
-//     sofort eine Systemansicht oeffnet; dort auf "Kalender" tippen.
-//  2. Normales Download - Windows, Android, Mac-Desktop. Auf iOS laesst sich
-//     die geladene Datei danach ueber die Downloads-Liste in Kalender oeffnen.
+// Ohne "download"-Attribut wandert der Browser weiter, statt still zu
+// speichern. Das ist derselbe Mechanismus wie ein gewoehnlicher .ics-Link.
+function oeffneImKalender(inhalt){
+  const blob = new Blob([inhalt], { type: ICS_MIME });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.target = "_self";
+  a.rel = "noopener";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  // Adresse erst spaet freigeben, sonst bricht Safari die Uebergabe ab.
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
 export async function deliverEventIcs(ev, titel, beschreibung){
   const inhalt = buildEventIcs(ev, titel, beschreibung);
   if(!inhalt) return { ok: false, grund: "kein Datum" };
 
-  const name = icsDateiname(ev, titel);
-  const datei = new File([inhalt], name, { type: ICS_MIME });
-
-  // canShare fehlt in manchen Browsern. Wenn es da ist, wirklich pruefen,
-  // sonst wirft share() bei nicht teilbaren Dateien eine Ausnahme.
-  const teilenMoeglich = navigator.share
-    && (!navigator.canShare || navigator.canShare({ files: [datei] }));
-  if(teilenMoeglich){
-    try {
-      await navigator.share({ files: [datei], title: titel });
-      return { ok: true, weg: "teilen" };
-    } catch(err){
-      // Abgebrochen heisst "der Nutzer wollte nicht" - das ist kein Fehler.
-      if(err && err.name === "AbortError") return { ok: false, grund: "abgebrochen" };
-      // Anderer Fehler: den Download unten versuchen.
-    }
+  // iPhone/iPad: natives Kalender-Fenster.
+  if(istApfelMobil()){
+    oeffneImKalender(inhalt);
+    return { ok: true, weg: "kalender" };
   }
 
-  // Bewusst ohne BOM und ohne charset - siehe oben.
+  // Windows, Android, Mac-Desktop: die Datei oeffnet der Nutzer anschliessend
+  // in seinem Kalender. Bewusst ohne BOM und ohne charset - siehe oben.
+  const name = icsDateiname(ev, titel);
   const blob = new Blob([inhalt], { type: ICS_MIME });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -168,7 +180,6 @@ export async function deliverEventIcs(ev, titel, beschreibung){
   document.body.appendChild(a);
   a.click();
   a.remove();
-  // Erst spaeter freigeben: iOS bricht den Download sonst still ab.
   setTimeout(() => URL.revokeObjectURL(url), 10000);
   return { ok: true, weg: "download" };
 }

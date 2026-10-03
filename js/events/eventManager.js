@@ -381,7 +381,7 @@ export async function addEventToCalendar(viewPrefix){
 
   const hinweis = document.getElementById("calendarFlash");
   if(hinweis){
-    hinweis.textContent = ergebnis.weg === "teilen" ? t.calendar_shared : t.calendar_done;
+    hinweis.textContent = ergebnis.weg === "kalender" ? t.calendar_open : t.calendar_done;
     hinweis.classList.add("show");
     clearTimeout(hinweis._timer);
     hinweis._timer = setTimeout(() => hinweis.classList.remove("show"), 5200);
