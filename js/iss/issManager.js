@@ -207,6 +207,12 @@ const STERN_DICHTE = 700;    // ein Stern je so vielen CSS-Pixeln Karte
 const STERN_DREH = 3.5;      // wie viel schneller der Himmel beim Ziehen mitdreht
 const STERN_MAX = 1500;      // Obergrenze, damit schwache Geraete ruhig bleiben
 
+// Milchstrasse: ein helles Nebelband auf der Himmelskugel. Wir sehen sie im
+// Querschnitt, deshalb liegt sie als geneigter Grosskreis am Himmel - nicht
+// als gerade Linie. Neigung und Kreuzungspunkt bestimmen den Winkel.
+const BAND_NEIGUNG = 62 * Math.PI / 180;
+const BAND_LON = 30 * Math.PI / 180;
+
 function sternHimmel(instance){
   const w = instance.width, h = instance.height;
   if(instance.himmel && instance.himmelW === w && instance.himmelH === h) return instance.himmel;
@@ -265,6 +271,96 @@ function zeichneHimmel(instance){
   ctx.globalAlpha = 1;
 }
 
+// Ein paar aufgehellte Sternwolken entlang des Bandes, dort wo die Milchstrasse
+// auch in Wirklichkeit besonders dicht steht. Einmal zufaellig gewuerfelt und
+// dann behalten, damit die Wolken nicht in jedem Bild neu flackern.
+function milchWolken(instance){
+  if(instance.bandWolken) return instance.bandWolken;
+  const wolken = [];
+  for(let i = 0; i < 7; i++){
+    wolken.push({
+      t: (i + 0.5) / 7 * Math.PI * 2 + (Math.random() - 0.5) * 0.6,
+      rad: 0.10 + Math.random() * 0.10,
+      alpha: 0.045 + Math.random() * 0.05
+    });
+  }
+  instance.bandWolken = wolken;
+  return wolken;
+}
+
+function zeichneMilchstrasse(instance){
+  const {ctx, center, width, height} = instance;
+  const R = Math.hypot(width, height) / 2 * 1.06;
+  const rad = Math.PI / 180;
+  const lat0 = (instance.sternLat || 0) * rad;
+  const lon0 = (instance.sternLon || 0) * rad;
+  const sinLat0 = Math.sin(lat0), cosLat0 = Math.cos(lat0);
+  const ci = Math.cos(BAND_NEIGUNG), si = Math.sin(BAND_NEIGUNG);
+
+  // Punkte der Milchstrassen-Ebene (ein Grosskreis) in Blickrichtung drehen -
+  // mit derselben Drehung wie die Sterne, damit beide gemeinsam wandern.
+  const proj = t => {
+    const bx = Math.cos(t), by = Math.sin(t) * ci, bz = Math.sin(t) * si;
+    const lat = Math.asin(Math.max(-1, Math.min(1, bz)));
+    const lon = Math.atan2(by, bx) + BAND_LON;
+    const dLon = lon - lon0;
+    const cosLat = Math.cos(lat);
+    const z = sinLat0 * Math.sin(lat) + cosLat0 * cosLat * Math.cos(dLon);
+    if(z <= 0.05) return null;
+    const x3 = cosLat * Math.sin(dLon);
+    const y3 = cosLat0 * Math.sin(lat) - sinLat0 * cosLat * Math.cos(dLon);
+    return [center[0] + x3 * R, center[1] - y3 * R];
+  };
+
+  const N = 180;
+  const punkte = [];
+  for(let k = 0; k <= N; k++) punkte.push(proj(k / N * Math.PI * 2));
+
+  ctx.save();
+  // Additiv mischen: das Band leuchtet wie Nebel ueber dem Schwarz, statt es
+  // mit einer deckenden Farbe zu uebermalen.
+  ctx.globalCompositeOperation = "lighter";
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
+  // Mehrere Lagen: ein breiter Schimmer und ein hellerer Kern. Zusammen ergibt
+  // das den weichen Nebel-Querschnitt statt einer harten Linie.
+  const lagen = [
+    {breite: 0.30, alpha: 0.022, farbe: "80,110,210"},
+    {breite: 0.16, alpha: 0.040, farbe: "105,140,235"},
+    {breite: 0.080, alpha: 0.045, farbe: "160,182,245"},
+    {breite: 0.030, alpha: 0.075, farbe: "228,235,255"}
+  ];
+  for(const lage of lagen){
+    ctx.lineWidth = R * lage.breite;
+    ctx.strokeStyle = `rgba(${lage.farbe},${lage.alpha})`;
+    ctx.beginPath();
+    let offen = false;
+    for(const p of punkte){
+      if(!p){ offen = false; continue; }
+      if(!offen){ ctx.moveTo(p[0], p[1]); offen = true; }
+      else ctx.lineTo(p[0], p[1]);
+    }
+    ctx.stroke();
+  }
+
+  for(const w of milchWolken(instance)){
+    const p = proj(w.t);
+    if(!p) continue;
+    const radius = R * w.rad;
+    const g = ctx.createRadialGradient(p[0], p[1], 0, p[0], p[1], radius);
+    g.addColorStop(0, `rgba(205,218,255,${w.alpha})`);
+    g.addColorStop(0.6, `rgba(150,170,235,${(w.alpha * 0.5).toFixed(3)})`);
+    g.addColorStop(1, "rgba(120,140,220,0)");
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(p[0], p[1], radius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
 export function drawGlobeFrame(instance, world){
   let issPoint = null;
   const {ctx, width, height, center, radius} = instance;
@@ -274,8 +370,8 @@ export function drawGlobeFrame(instance, world){
 
   // Leichter Sternenhimmel hinter der Erde (nur ISS-Ansicht). Er wird vor der
   // Erdscheibe gezeichnet und von ihr verdeckt - so scheint kein Stern durch
-  // den Planeten.
-  if(instance.showIss) zeichneHimmel(instance);
+  // den Planeten. Die Milchstrasse liegt dahinter, die Sterne davor.
+  if(instance.showIss){ zeichneMilchstrasse(instance); zeichneHimmel(instance); }
 
   // Zieht einen projizierten Punkt vom Kugelmittelpunkt aus nach aussen auf
   // den schwebenden Ring. Bahn und Station werden beide damit behandelt, damit
