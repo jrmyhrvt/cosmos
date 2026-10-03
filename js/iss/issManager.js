@@ -196,12 +196,86 @@ export function globePointOnNearSide(instance, lon, lat){
   return globePointVisibility(instance, lon, lat) > 0;
 }
 
+/* --- Sterne hinter dem Globus ---------------------------------------------
+   Die ISS-Ansicht bekommt einen leichten Sternenhimmel. Er liegt HINTER der
+   Erde: gezeichnet wird er vor der Erdscheibe, die ihn sauber abdeckt - die
+   Sterne scheinen also nie durch den Planeten. Beim Ziehen dreht sich der
+   Himmel mit, und zwar deutlich schneller als die Erdoberflaeche, sodass das
+   Drehen wie ein Blick in den Kosmos wirkt.
+   -------------------------------------------------------------------------- */
+const STERN_DICHTE = 700;    // ein Stern je so vielen CSS-Pixeln Karte
+const STERN_DREH = 3.5;      // wie viel schneller der Himmel beim Ziehen mitdreht
+const STERN_MAX = 1500;      // Obergrenze, damit schwache Geraete ruhig bleiben
+
+function sternHimmel(instance){
+  const w = instance.width, h = instance.height;
+  if(instance.himmel && instance.himmelW === w && instance.himmelH === h) return instance.himmel;
+  const cssFlaeche = (instance.canvas.clientWidth || w) * (instance.canvas.clientHeight || h);
+  const anzahl = Math.max(60, Math.min(STERN_MAX, Math.round(cssFlaeche / STERN_DICHTE)));
+  const sterne = [];
+  for(let i = 0; i < anzahl; i++){
+    sterne.push({
+      lon: Math.random() * 360 - 180,
+      // Gleichmaessig ueber die Kugel verteilen: die Breite ueber den
+      // Arkussinus streuen, sonst sammeln sich die Sterne an den Polen.
+      lat: Math.asin(Math.random() * 2 - 1) * 180 / Math.PI,
+      alpha: 0.16 + Math.random() * 0.5,
+      groesse: (0.7 + Math.random() * 1.4) * instance.dpr,
+      blink: Math.random() * 0.35,
+      rate: 0.4 + Math.random() * 1.6,
+      ph: Math.random() * Math.PI * 2
+    });
+  }
+  instance.himmel = sterne;
+  instance.himmelW = w;
+  instance.himmelH = h;
+  return sterne;
+}
+
+function zeichneHimmel(instance){
+  const sterne = sternHimmel(instance);
+  const {ctx, center, width, height} = instance;
+  // Radius so gross, dass die sichtbare Halbkugel die ganze Leinwand fuellt,
+  // auch die Ecken. Die Sterne stehen damit auf einer grossen Himmelskugel.
+  const R = Math.hypot(width, height) / 2 * 1.06;
+  const rad = Math.PI / 180;
+  const lat0 = (instance.sternLat || 0) * rad;
+  const sinLat0 = Math.sin(lat0), cosLat0 = Math.cos(lat0);
+  const lon0 = instance.sternLon || 0;
+  const sekunden = Date.now() / 1000;
+  ctx.fillStyle = "#fff";
+  for(const s of sterne){
+    const dLon = (s.lon - lon0) * rad;
+    const lat = s.lat * rad;
+    const cosLat = Math.cos(lat);
+    // z > 0: vor dem Betrachter. Sonst liegt der Stern hinter ihm.
+    const z = sinLat0 * Math.sin(lat) + cosLat0 * cosLat * Math.cos(dLon);
+    if(z <= 0) continue;
+    const x3 = cosLat * Math.sin(dLon);
+    const y3 = cosLat0 * Math.sin(lat) - sinLat0 * cosLat * Math.cos(dLon);
+    const px = center[0] + x3 * R;
+    const py = center[1] - y3 * R;
+    const funkeln = 1 + s.blink * Math.sin(sekunden * s.rate + s.ph);
+    // Am Horizont der Kugel weich ausblenden, damit kein harter Sternrand
+    // entsteht, wenn ein Stern beim Drehen auftaucht oder verschwindet.
+    const rand = Math.min(1, z / 0.2);
+    ctx.globalAlpha = Math.max(0, Math.min(1, s.alpha * funkeln)) * rand;
+    ctx.fillRect(px, py, s.groesse, s.groesse);
+  }
+  ctx.globalAlpha = 1;
+}
+
 export function drawGlobeFrame(instance, world){
   let issPoint = null;
   const {ctx, width, height, center, radius} = instance;
   const projection = instance.projection;
 
   ctx.clearRect(0, 0, width, height);
+
+  // Leichter Sternenhimmel hinter der Erde (nur ISS-Ansicht). Er wird vor der
+  // Erdscheibe gezeichnet und von ihr verdeckt - so scheint kein Stern durch
+  // den Planeten.
+  if(instance.showIss) zeichneHimmel(instance);
 
   // Zieht einen projizierten Punkt vom Kugelmittelpunkt aus nach aussen auf
   // den schwebenden Ring. Bahn und Station werden beide damit behandelt, damit
@@ -818,6 +892,13 @@ export function mountGlobe(canvasId, statusId, options = {}){
     zoom: 1,
     viewLon: 0,
     viewLat: -8,
+    // Ausrichtung des Sternenhimmels hinter der Erde. Wird nur beim Ziehen
+    // veraendert, damit sich der Himmel beim Drehen mitbewegt.
+    sternLon: 0,
+    sternLat: 0,
+    himmel: null,
+    himmelW: 0,
+    himmelH: 0,
     userMoved: false,
     dragging: false,
     lastX: 0,
@@ -891,6 +972,11 @@ export function mountGlobe(canvasId, statusId, options = {}){
       instance.userMoved = true;
       instance.viewLon = ((instance.viewLon - dx * f) % 360 + 540) % 360 - 180;
       instance.viewLat = Math.max(-88, Math.min(88, instance.viewLat + dy * f));
+      // Der Sternenhimmel dreht sich mit, aber deutlich schneller als die
+      // Erdoberflaeche - das Ziehen fuehlt sich dadurch wie ein Blick in den
+      // Kosmos an. Die Erde bleibt davor und deckt ihn weiterhin ab.
+      instance.sternLon = ((instance.sternLon - dx * f * STERN_DREH) % 360 + 540) % 360 - 180;
+      instance.sternLat = Math.max(-88, Math.min(88, instance.sternLat + dy * f * STERN_DREH));
     } else {
       instance.userRotation += dx * drehGrad();
     }
