@@ -58,6 +58,12 @@
   .search-sticky{position:sticky;top:-22px;z-index:10;padding:12px 20px;background:#000;margin:-22px -20px 15px}
   .search-input{width:100%;padding:10px 16px;border-radius:14px;border:1px solid var(--border);background:rgba(255,255,255,.05);color:#fff;font-size:14px;outline:none}
   .search-input::placeholder{color:var(--muted)}
+  .search-field{position:relative}
+  .search-field .search-input{padding-right:40px}
+  .search-clear{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:28px;height:28px;padding:0;border:none;border-radius:50%;background:none;color:var(--muted);font-size:19px;line-height:1;display:none;place-items:center;cursor:pointer;-webkit-tap-highlight-color:transparent}
+  .search-clear.sichtbar{display:grid}
+  .search-clear:hover{color:#fff}
+  .search-clear:active{transform:translateY(-50%) scale(.9);background:rgba(255,255,255,.12)}
 
   .section-head{display:flex;align-items:end;justify-content:space-between;margin:8px 3px 12px}
   h1{font-size:34px;line-height:1;margin:0;letter-spacing:-.045em;color:#fff}

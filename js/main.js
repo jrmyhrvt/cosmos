@@ -439,7 +439,22 @@ document.getElementById('brandBtn').addEventListener('click', () => {
 
 document.getElementById('searchEvents').addEventListener('input', e => renderEvents(e.target.value));
 document.getElementById('searchHistory').addEventListener('input', e => renderHistory(e.target.value));
-document.getElementById('searchGloStar').addEventListener('input', e => renderGloStar(e.target.value));
+const gloSucheFeld = document.getElementById('searchGloStar');
+const gloSucheLoeschen = document.getElementById('clearGloStar');
+function aktualisiereGloStarLoeschen(){
+  gloSucheLoeschen.classList.toggle('sichtbar', gloSucheFeld.value.length > 0);
+}
+gloSucheFeld.addEventListener('input', e => {
+  renderGloStar(e.target.value);
+  aktualisiereGloStarLoeschen();
+});
+gloSucheLoeschen.addEventListener('click', () => {
+  gloSucheFeld.value = '';
+  renderGloStar('');
+  aktualisiereGloStarLoeschen();
+  gloSucheFeld.focus();
+});
+aktualisiereGloStarLoeschen();
 
 loadEventCache();
 sortEventsAutomatically();
