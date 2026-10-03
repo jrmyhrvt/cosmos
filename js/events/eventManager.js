@@ -437,6 +437,12 @@ export function resetDetail(viewPrefix){
   detailEl.classList.remove("active");
   detailEl.innerHTML = "";
   delete detailEl.dataset.openId;
+  // Die Alphabet-Leiste gehoert zur GloStar-Liste: beim Zurueckkehren wieder
+  // einblenden, nachdem sie fuer die Detailseite ausgeblendet wurde.
+  if(viewPrefix === "glostar"){
+    const scrubber = document.getElementById("glostarScrubber");
+    if(scrubber) scrubber.classList.remove("aus");
+  }
   return wasOpen;
 }
 

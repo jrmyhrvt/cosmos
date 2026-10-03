@@ -120,7 +120,7 @@ export function openGloStarDetail(index){
   if(glostarView) glostarView.scrollTop = 0;
   // Der Alphabet-Scrubber gehoert zur Liste, nicht zur Detailseite.
   const scrubber = document.getElementById("glostarScrubber");
-  if(scrubber) scrubber.classList.remove("show");
+  if(scrubber) scrubber.classList.add("aus");
   pruneGlobes();
 }
 
@@ -168,12 +168,10 @@ export function springeZuGloStarBuchstabe(letter, sanft = true){
   });
 }
 
-/* --- Alphabet-Scrubber am rechten Rand ------------------------------------
-   Erscheint nur beim Scrollen (oder bei Beruehrung) und blendet sich nach
-   kurzer Ruhe aus. Der aktuelle Buchstabe ist hervorgehoben; Antippen oder
-   Entlangziehen springt zur Gruppe. So bleibt die Liste aufgeraeumt, die
-   Navigation ist aber immer mit einer Fingerbewegung erreichbar. */
-let glostarScrubberTimer = 0;
+/* --- Alphabet-Leiste am linken Rand ---------------------------------------
+   Zeigt dauerhaft den aktuellen Buchstaben; Antippen oder Entlangziehen
+   springt zur Gruppe. Die Liste bleibt daneben frei, weil die Leiste im
+   linken Aussenabstand der Ansicht sitzt. */
 let glostarScrubberVerdrahtet = false;
 
 function aktualisiereGloStarScrubber(){
@@ -182,7 +180,9 @@ function aktualisiereGloStarScrubber(){
   const detail = document.getElementById("glostar-detail");
   const el = document.getElementById("glostarScrubber");
   if(!view || !grid || !el) return;
-  if(detail && detail.classList.contains("active")) return;
+  const imDetail = detail && detail.classList.contains("active");
+  el.classList.toggle("aus", !!imDetail);
+  if(imDetail) return;
   const vt = view.getBoundingClientRect().top;
   let aktiv = "";
   for(const s of grid.querySelectorAll(".glostar-sektion")){
@@ -213,13 +213,6 @@ function verdrahteGloStarScrubber(el){
   if(glostarScrubberVerdrahtet) return;
   const view = document.getElementById("glostar");
   if(!view) return;
-  const zeige = () => {
-    const detail = document.getElementById("glostar-detail");
-    if(detail && detail.classList.contains("active")) return;
-    el.classList.add("show");
-    clearTimeout(glostarScrubberTimer);
-    glostarScrubberTimer = setTimeout(() => el.classList.remove("show"), 1100);
-  };
   const waehle = clientY => {
     const r = el.getBoundingClientRect();
     const anzahl = el.children.length;
@@ -230,14 +223,12 @@ function verdrahteGloStarScrubber(el){
   el.addEventListener("pointerdown", e => {
     e.preventDefault();
     el.setPointerCapture(e.pointerId);
-    zeige();
     waehle(e.clientY);
   });
   el.addEventListener("pointermove", e => {
-    if(e.buttons){ zeige(); waehle(e.clientY); }
+    if(e.buttons) waehle(e.clientY);
   });
-  window.addEventListener("pointerup", () => zeige());
-  view.addEventListener("scroll", () => { aktualisiereGloStarScrubber(); zeige(); }, {passive: true});
+  view.addEventListener("scroll", aktualisiereGloStarScrubber, {passive: true});
   window.addEventListener("resize", aktualisiereGloStarScrubber);
   glostarScrubberVerdrahtet = true;
 }
