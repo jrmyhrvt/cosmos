@@ -12,23 +12,36 @@ function setzeSchrift(c, groesse){
   try{ c.letterSpacing = SPERRUNG; }catch{}
 }
 
-// breite: verfuegbare Breite in CSS-Pixeln. Liefert die noetige Hoehe und die
+// breite: verfuegbare Breite in CSS-Pixeln, maxHoehe: optionale Obergrenze fuer
+// die Hoehe (z. B. flaches Handy-Querformat). Liefert die noetige Hoehe und die
 // Zielpunkte in lokalen Koordinaten (links oben = 0,0).
-export function berechneSternwort(breite){
+export function berechneSternwort(breite, maxHoehe){
   const b = Math.max(1, breite);
   const hilfe = document.createElement("canvas");
   const hx = hilfe.getContext("2d");
 
   setzeSchrift(hx, 100);
   const breite100 = hx.measureText(WORT).width || 1;
-  const S = 100 * (b * 0.94) / breite100;
+  let S = 100 * (b * 0.94) / breite100;
   setzeSchrift(hx, S);
 
-  const masse = hx.measureText(WORT);
-  const hoch = masse.actualBoundingBoxAscent || S * 0.72;
-  const tief = masse.actualBoundingBoxDescent || S * 0.02;
-  const rand = S * 0.22;
-  const hoehe = Math.ceil(hoch + tief + rand * 2);
+  let masse = hx.measureText(WORT);
+  let hoch = masse.actualBoundingBoxAscent || S * 0.72;
+  let tief = masse.actualBoundingBoxDescent || S * 0.02;
+  let rand = S * 0.22;
+  let hoehe = Math.ceil(hoch + tief + rand * 2);
+
+  // Auf sehr flachen Fenstern das Wort zusaetzlich verkleinern, damit es nicht
+  // senkrecht aus dem Bild laeuft (z. B. Handy im Querformat).
+  if(maxHoehe && hoehe > maxHoehe){
+    S *= maxHoehe / hoehe;
+    setzeSchrift(hx, S);
+    masse = hx.measureText(WORT);
+    hoch = masse.actualBoundingBoxAscent || S * 0.72;
+    tief = masse.actualBoundingBoxDescent || S * 0.02;
+    rand = S * 0.22;
+    hoehe = Math.ceil(hoch + tief + rand * 2);
+  }
 
   hilfe.width = Math.round(b);
   hilfe.height = hoehe;
