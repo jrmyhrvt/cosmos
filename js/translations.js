@@ -784,5 +784,10 @@ export const SVG_ICONS = {
   pulsar: `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.5" fill="#fff"/><path d="M2 12h4M18 12h4M12 2v4M12 18v4"/></svg>`,
   perihel: `<svg viewBox="0 0 24 24"><ellipse cx="13" cy="12" rx="9" ry="5"/><circle cx="4" cy="12" r="1.5" fill="#fff"/><circle cx="22" cy="12" r="1" fill="#fff"/></svg>`,
   asteroid: `<svg viewBox="0 0 24 24"><path d="M8 4l3 2 4-1 3 3-1 4 2 3-3 3-4-1-3 2-3-2-1-4-3-2 2-3-1-4z"/></svg>`,
-  comet: `<svg viewBox="0 0 24 24"><circle cx="17" cy="7" r="2.5" fill="#fff"/><path d="M15 9l-12 8"/><path d="M13.5 8.5l-9 6"/></svg>`
+  comet: `<svg viewBox="0 0 24 24"><circle cx="17" cy="7" r="2.5" fill="#fff"/><path d="M15 9l-12 8"/><path d="M13.5 8.5l-9 6"/></svg>`,
+  sun: `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/></svg>`,
+  moon: `<svg viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/></svg>`,
+  cluster: `<svg viewBox="0 0 24 24"><circle cx="8" cy="8" r="1.6" fill="#fff"/><circle cx="15" cy="7" r="1.2"/><circle cx="12" cy="13" r="1.6" fill="#fff"/><circle cx="17" cy="15" r="1.2"/><circle cx="7" cy="16" r="1.2"/><circle cx="12" cy="4" r="0.9"/></svg>`,
+  telescope: `<svg viewBox="0 0 24 24"><path d="M4 13l10-7"/><path d="M12 3l4 2.5-1.8 3.2-4-2.5z"/><path d="M11 10l-3 10M11 10l6 10M6.5 20h9"/></svg>`,
+  astronaut: `<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4.5"/><circle cx="11" cy="8" r="2.2" fill="#fff" stroke="none"/><path d="M6 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><path d="M9 15v2M15 15v2"/></svg>`
 };
