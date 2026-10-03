@@ -149,55 +149,8 @@ function messeGloStarVersatz(){
   view.style.setProperty("--gs-sticky", Math.max(0, glostarStickyVersatz - innenAbstand) + "px");
 }
 
-// Hebt in der Buchstabenleiste den Abschnitt hervor, der gerade oben steht.
-export function aktualisiereGloStarAlphabet(){
-  const view = document.getElementById("glostar");
-  if(!view) return;
-  const sektionen = [...view.querySelectorAll(".glostar-sektion")];
-  if(!sektionen.length) return;
-  const grenze = view.getBoundingClientRect().top + glostarStickyVersatz + 6;
-  let aktiv = sektionen[0].dataset.letter;
-  for(const sektion of sektionen){
-    if(sektion.getBoundingClientRect().top <= grenze) aktiv = sektion.dataset.letter;
-    else break;
-  }
-  // Ganz unten bleibt der letzte Abschnitt hervorgehoben, auch wenn er den
-  // oberen Rand nie erreicht, weil die Liste dort endet.
-  if(view.scrollTop + view.clientHeight >= view.scrollHeight - 4){
-    aktiv = sektionen[sektionen.length - 1].dataset.letter;
-  }
-  for(const knopf of view.querySelectorAll(".glostar-alpha-letter")){
-    knopf.classList.toggle("active", knopf.dataset.letter === aktiv);
-  }
-}
-
-// Springt sanft zum Abschnitt eines Buchstabens, so dass er unter der
-// Suchleiste steht. Wird von den Knoepfen der Buchstabenleiste aufgerufen.
-export function springeZuGloStarBuchstabe(buchstabe){
-  const view = document.getElementById("glostar");
-  const sektion = view && view.querySelector(`.glostar-sektion[data-letter="${buchstabe}"]`);
-  if(!view || !sektion) return;
-  const ziel = sektion.getBoundingClientRect().top - view.getBoundingClientRect().top
-    + view.scrollTop - glostarStickyVersatz;
-  view.scrollTo({top: Math.max(0, ziel), behavior: "smooth"});
-}
-
-// Die Buchstabenleiste haengt an der Ansicht, nicht an der bei jedem Neuzeichnen
-// ersetzten Liste - deshalb nur einmal verdrahten.
-let glostarScrollVerdrahtet = false;
-function verdrahteGloStarAlphabet(){
-  const view = document.getElementById("glostar");
-  if(!view || glostarScrollVerdrahtet) return;
-  view.addEventListener("scroll", () => {
-    if(view.classList.contains("active")) aktualisiereGloStarAlphabet();
-  }, {passive: true});
-  window.addEventListener("resize", () => { messeGloStarVersatz(); aktualisiereGloStarAlphabet(); });
-  glostarScrollVerdrahtet = true;
-}
-
 export function renderGloStar(filterText = ""){
   const grid = document.getElementById("glostarGrid");
-  const alphabet = document.getElementById("glostarAlphabet");
   const items = GLOSTAR_DATA.filter(item => {
     const itemName = gText(item, "name").toLowerCase();
     const itemSum = gText(item, "sum").toLowerCase();
@@ -210,8 +163,9 @@ export function renderGloStar(filterText = ""){
   items.sort((a, b) => gText(a, "name").localeCompare(gText(b, "name"), currentLang, {sensitivity: "base"}));
 
   // Nach Anfangsbuchstaben gruppieren. Jede Gruppe wird ein Abschnitt, damit
-  // ihr Buchstabe beim Scrollen oben kleben bleibt - wie die Sticky-Scroll-
-  // Ueberschriften im VS Code.
+  // ihr Buchstabe beim Scrollen unter dem Suchfeld kleben bleibt und erst vom
+  // naechsten Buchstaben abgeloest wird - wie die Sticky-Scroll-Ueberschriften
+  // im VS Code.
   const gruppen = [];
   for(const item of items){
     const anfang = (gText(item, "name").trim()[0] || "#").toUpperCase();
@@ -234,16 +188,7 @@ export function renderGloStar(filterText = ""){
     }).join("")}
   </section>`).join("");
 
-  if(alphabet){
-    alphabet.innerHTML = gruppen.length > 1
-      ? gruppen.map(gruppe => `<button type="button" class="glostar-alpha-letter" data-letter="${escapeHtml(gruppe.buchstabe)}" onclick="springeZuGloStarBuchstabe('${escapeHtml(gruppe.buchstabe)}')">${escapeHtml(gruppe.buchstabe)}</button>`).join("")
-      : "";
-    alphabet.style.display = gruppen.length > 1 ? "" : "none";
-  }
-
   messeGloStarVersatz();
-  verdrahteGloStarAlphabet();
-  requestAnimationFrame(aktualisiereGloStarAlphabet);
 }
 
 /* --- ISS: Live-Position ---------------------------------------------------- */

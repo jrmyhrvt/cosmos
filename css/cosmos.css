@@ -101,8 +101,7 @@
   /* GloStar-Uebersicht: alphabetische Liste statt Kachelraster. Jeder
      Anfangsbuchstabe bekommt eine groessere Zwischenueberschrift, darunter
      stehen die Begriffe als schmale Zeilen mit ihrem Piktogramm. */
-  .glostar-body{display:flex;align-items:flex-start;gap:10px}
-  .glostar-list{flex:1 1 auto;min-width:0;display:flex;flex-direction:column}
+  .glostar-list{display:flex;flex-direction:column}
   .glostar-sektion{display:flex;flex-direction:column}
   /* Der Buchstabe bleibt beim Scrollen unter dem Suchfeld kleben, bis der
      naechste ihn ablöst - das ist die VS-Code-Sticky-Scroll-Idee. Der
@@ -111,12 +110,6 @@
   /* Jeder Buchstabe ist der erste Eintrag seines Abschnitts; nur der allererste
      braucht keinen grossen Abstand nach oben. */
   .glostar-sektion:first-child .glostar-letter{margin-top:4px}
-  /* Alphabetische Sprungleiste links. Nur die Buchstaben, die es wirklich
-     gibt; der gerade sichtbare Abschnitt ist hervorgehoben. */
-  .glostar-alphabet{position:sticky;top:var(--gs-sticky,62px);z-index:3;flex:0 0 auto;display:flex;flex-direction:column;gap:1px;padding:2px 0}
-  .glostar-alpha-letter{appearance:none;-webkit-appearance:none;background:none;border:0;font-family:inherit;font-size:12px;font-weight:650;color:var(--muted);cursor:pointer;line-height:1.3;padding:1px 5px;border-radius:6px;text-align:center;transition:color .15s ease}
-  .glostar-alpha-letter:hover{color:#fff}
-  .glostar-alpha-letter.active{color:#fff;font-weight:800;background:rgba(255,255,255,.1)}
   .glostar-row{display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:12px;cursor:pointer;min-width:0}
   .glostar-row:hover{background:rgba(255,255,255,.06)}
   /* Das Piktogramm sitzt direkt hinter dem Begriff statt am Zeilenrand - so

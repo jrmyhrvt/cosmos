@@ -1,6 +1,6 @@
 import { EVENTS, fetchSpaceCalendarFeed, lastSyncAt, loadEventCache, updateSyncInfo } from "./api.js";
 import { addEventToCalendar, changeOffset, closeDetail, eventState, openDetail, renderAll, renderEvents, renderHistory, resetDetail, sortEventsAutomatically, tickCountdowns, tzOffsetHours } from "./events/eventManager.js";
-import { GLOSTAR_DATA, jumpToGloStar, openGloStarDetail, renderGloStar, springeZuGloStarBuchstabe } from "./glostar/glostar.js";
+import { GLOSTAR_DATA, jumpToGloStar, openGloStarDetail, renderGloStar } from "./glostar/glostar.js";
 import { pruneGlobes } from "./iss/issManager.js";
 import { issPassSprache } from "./iss/issPassView.js";
 import { TRANSLATIONS } from "./translations.js";
@@ -320,5 +320,5 @@ document.addEventListener("visibilitychange", () => {
 // damit keine zwei Module dieselbe globale Funktion doppelt vergeben.
 Object.assign(window, {
   setLanguage, changeOffset, openDetail, closeDetail,
-  openGloStarDetail, jumpToGloStar, addEventToCalendar, springeZuGloStarBuchstabe
+  openGloStarDetail, jumpToGloStar, addEventToCalendar
 });
