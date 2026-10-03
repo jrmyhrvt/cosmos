@@ -104,10 +104,12 @@
   .glostar-list{display:flex;flex-direction:column}
   .glostar-letter{font-size:23px;font-weight:750;color:#fff;letter-spacing:.02em;margin:26px 0 4px;padding-left:2px}
   .glostar-letter:first-child{margin-top:4px}
-  .glostar-row{display:flex;align-items:center;gap:12px;justify-content:space-between;padding:11px 12px;border-radius:12px;cursor:pointer;min-width:0}
+  .glostar-row{display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:12px;cursor:pointer;min-width:0}
   .glostar-row:hover{background:rgba(255,255,255,.06)}
-  .glostar-row-icon{flex:0 0 auto;width:30px;height:30px;border-radius:9px;background:rgba(255,255,255,.04);display:grid;place-items:center;border:1px solid var(--border)}
-  .glostar-row-icon svg{width:16px;height:16px;stroke:#fff;fill:none;stroke-width:1.8}
+  /* Das Piktogramm sitzt direkt hinter dem Begriff statt am Zeilenrand - so
+     gehoert es sichtbar zum Wort und die Liste bleibt trotzdem eine Spalte. */
+  .glostar-row-icon{flex:0 0 auto;width:34px;height:34px;border-radius:10px;background:rgba(255,255,255,.09);display:grid;place-items:center;border:1px solid rgba(255,255,255,.2)}
+  .glostar-row-icon svg{width:22px;height:22px;stroke:#fff;fill:none;stroke-width:1.7;opacity:.95}
   /* Lange Komposita (z. B. "Kosmische Hintergrundstrahlung") muessen umbrechen
      duerfen, statt aus der Liste zu ragen - einheitlich fuer alle Sprachen. */
   .glostar-row-name{min-width:0;font-size:15px;font-weight:600;color:#fff;overflow-wrap:anywhere;word-break:break-word;hyphens:auto;-webkit-hyphens:auto}
