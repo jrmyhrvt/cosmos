@@ -42,8 +42,9 @@
   .home{display:flex;align-items:center;justify-content:center;text-align:center}
   .hero{max-width:520px;margin-top:-6vh}
   .eyebrow{font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--muted);margin-bottom:18px}
-  .quote{font-size:clamp(30px,7.5vw,52px);line-height:.98;font-weight:650;letter-spacing:-.05em;text-wrap:balance}
-  .quote em{font-style:normal;color:#fff}
+  /* Das Wort "COSMOS" besteht aus vielen einzelnen Sternen; die Hoehe setzt
+     das Skript passend zur gemessenen Wortgroesse. */
+  .star-word{display:block;width:100%;margin:2px 0 0}
   .sub{margin:20px auto 0;max-width:320px;color:var(--muted);font-size:13.5px;line-height:1.55}
   
   .lang-selector-box{display:inline-flex;align-items:center;gap:6px;margin-top:28px;padding:5px;border:1px solid var(--border);border-radius:999px;background:rgba(255,255,255,.03);backdrop-filter:blur(16px)}

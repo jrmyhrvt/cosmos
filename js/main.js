@@ -1,6 +1,7 @@
 import { EVENTS, fetchSpaceCalendarFeed, lastSyncAt, loadEventCache, updateSyncInfo } from "./api.js";
 import { addEventToCalendar, changeOffset, closeDetail, eventState, openDetail, renderAll, renderEvents, renderHistory, resetDetail, sortEventsAutomatically, tickCountdowns, tzOffsetHours } from "./events/eventManager.js";
 import { GLOSTAR_DATA, jumpToGloStar, openGloStarDetail, renderGloStar } from "./glostar/glostar.js";
+import { initSternwort, setzeSternwortAktiv } from "./home/starWord.js";
 import { pruneGlobes } from "./iss/issManager.js";
 import { issPassSprache } from "./iss/issPassView.js";
 import { TRANSLATIONS } from "./translations.js";
@@ -250,6 +251,8 @@ export function switchView(target){
   // Die Alphabet-Leiste liegt in <main> und gehoert nur zur GloStar-Ansicht.
   const scrubber = document.getElementById("glostarScrubber");
   if(scrubber) scrubber.classList.toggle("aus", target !== "glostar");
+  // Das Sternen-Wort animiert nur auf dem Startfenster.
+  setzeSternwortAktiv(target === "home");
   return view;
 }
 
@@ -269,6 +272,7 @@ loadEventCache();
 sortEventsAutomatically();
 renderAll();
 renderGloStar();
+initSternwort();
 fetchSpaceCalendarFeed();
 
 /* --- Automatische Aktualisierung -----------------------------------------
