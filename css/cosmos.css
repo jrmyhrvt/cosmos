@@ -102,17 +102,22 @@
      Anfangsbuchstabe bekommt eine groessere Zwischenueberschrift, darunter
      stehen die Begriffe als schmale Zeilen mit ihrem Piktogramm. */
   .glostar-list{display:flex;flex-direction:column;position:relative}
-  /* Die Buchstaben sind direkte Kinder der Liste (keine Abschnitts-Wrapper
-     mehr), damit ihr Sticky-Containing-Block die ganze Liste ist. So kann
-     JavaScript sie beim Scrollen zu einem Stapel unter dem Suchfeld
-     aufreihen: A bleibt oben, B rutscht darunter, dann C und so weiter.
-     Der schwarze Hintergrund deckt die Zeilen ab, die darunter durchlaufen. */
-  .glostar-letter{position:sticky;top:var(--gs-sticky,62px);z-index:2;background:#000;font-size:23px;font-weight:750;color:#fff;letter-spacing:.02em;margin:0;padding:2px 0 4px 2px;cursor:pointer;-webkit-user-select:none;user-select:none}
-  .glostar-letter:hover{color:#cfd8ff}
-  /* Die letzte Zeile einer Buchstabengruppe haelt den Abstand zur naechsten
-     Ueberschrift - so braucht der Buchstabe selbst keinen Aussenabstand, der
-     den Stapel verzerren wuerde. */
-  .glostar-row--letzte{margin-bottom:22px}
+  .glostar-sektion{display:flex;flex-direction:column}
+  /* Der Buchstabe bleibt beim Scrollen unter dem Suchfeld kleben und wird
+     vom naechsten abgeloest. Der schwarze Hintergrund deckt die Zeilen ab,
+     die darunter durchlaufen. */
+  .glostar-letter{position:sticky;top:var(--gs-sticky,62px);z-index:2;background:#000;font-size:23px;font-weight:750;color:#fff;letter-spacing:.02em;margin:26px 0 4px;padding:2px 0 4px 2px}
+  /* Jeder Buchstabe ist der erste Eintrag seines Abschnitts; nur der allererste
+     braucht keinen grossen Abstand nach oben. */
+  .glostar-sektion:first-child .glostar-letter{margin-top:4px}
+  /* Alphabet-Scrubber: schmale Leiste am rechten Rand. Sie erscheint nur
+     beim Scrollen (oder bei Beruehrung) und blendet sich danach wieder aus,
+     kostet also keinen Platz. Antippen oder entlangziehen springt zur Gruppe,
+     der aktuelle Buchstabe ist hervorgehoben. */
+  .glostar-scrubber{position:absolute;right:2px;z-index:9;display:flex;flex-direction:column;align-items:center;gap:1px;padding:8px 6px;border-radius:999px;background:rgba(0,0,0,.5);backdrop-filter:blur(10px);opacity:0;pointer-events:none;transform:translateY(-50%) scale(.94);transition:opacity .22s ease,transform .22s ease;touch-action:none}
+  .glostar-scrubber.show{opacity:1;pointer-events:auto;transform:translateY(-50%) scale(1)}
+  .glostar-scrubber-letter{font-size:10px;font-weight:700;line-height:1.22;color:rgba(255,255,255,.5);cursor:pointer;padding:0 2px;transition:color .15s ease,transform .15s ease}
+  .glostar-scrubber-letter.active{color:#fff;transform:scale(1.4)}
   .glostar-row{display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:12px;cursor:pointer;min-width:0}
   .glostar-row:hover{background:rgba(255,255,255,.06)}
   /* Das Piktogramm sitzt direkt hinter dem Begriff statt am Zeilenrand - so
