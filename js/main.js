@@ -142,7 +142,7 @@ export function neuerStern(farbe, schicht, tiefe, x, y){
 // Dichte an die Bildflaeche binden: ein grosser Bildschirm soll mehr Sterne
 // bekommen, nicht dieselben paar hundert wie ein Telefon.
 export function sternZielzahl(flaeche){
-  return Math.max(900, Math.min(5200, Math.round(flaeche / 320)));
+  return Math.max(700, Math.min(4600, Math.round(flaeche / 400)));
 }
 
 export function sternFuellen(b, h){
@@ -158,6 +158,10 @@ export function sternFuellen(b, h){
 export const starCanvas = document.getElementById('stars');
 export const starCtx = starCanvas.getContext('2d');
 export let sterne = [];
+// Eigener, zusaetzlicher Sternvorrat nur fuer das Wort "COSMOS". Die normalen
+// Hintergrundsterne bleiben davon unberuehrt, damit der Sternenhimmel in allen
+// Ansichten gleich schoen und gleichmaessig bleibt.
+export let wortSterne = [];
 export let sternB = 0, sternH = 0, sternDpr = 1;
 export let pointerX = window.innerWidth / 2;
 export let pointerY = window.innerHeight / 2;
@@ -180,6 +184,7 @@ export function resizeStars(){
     // und die Zahl an die neue Flaeche anpassen.
     const fx = b / sternB, fy = h / sternH;
     for(const s of sterne){ s.x = (s.x * fx) % b; s.y = (s.y * fy) % h; }
+    for(const s of wortSterne){ s.x = (s.x * fx) % b; s.y = (s.y * fy) % h; }
   }
   sternB = b; sternH = h; sternDpr = dpr;
   // Auf dem Retina-Display sonst wuerden die Sterne weichgezeichnet.
@@ -199,10 +204,12 @@ window.addEventListener('resize', () => {
 });
 resizeStars();
 
-/* --- Sternenwort: die Hintergrundsterne formen "COSMOS" -------------------
-   Auf dem Startfenster fliegen die Sterne zu den berechneten Positionen des
-   Wortes, bleiben dort schweben und funkeln. In allen anderen Ansichten loest
-   sich die Formation wieder und der normale Sternenhimmel laeuft weiter.
+/* --- Sternenwort: zusaetzliche Sterne formen "COSMOS" --------------------
+   Auf dem Startfenster fliegt ein eigener Vorrat zusaetzlicher Sterne zu den
+   berechneten Positionen des Wortes, bleibt dort schweben und funkeln. Der
+   normale Sternenhimmel bleibt davon unberuehrt und ist in jeder Ansicht
+   gleich dicht. In anderen Ansichten loest sich die Formation wieder und die
+   Wort-Sterne blenden sanft als normale Sterne zurueck.
    ------------------------------------------------------------------------ */
 let sternFormAktiv = false;
 const WORT_HELL = 2.5;      // Helligkeitsfaktor der Sterne, die das Wort bilden
@@ -216,22 +223,28 @@ function setzeSternForm(aktiv){
 
 function starteSternFormung(){
   const platz = document.getElementById("starWord");
-  if(!platz || !sterne.length) return;
+  if(!platz) return;
   // Die tatsaechliche Breite des Platzes verwenden (statt window.innerWidth),
   // damit das Wort auf Handy und Mac exakt in den verfuegbaren Raum passt.
   const breite = platz.getBoundingClientRect().width || window.innerWidth;
-  // Auf flachen Fenstern bleibt oben/unten Platz fuer Titel und Untertitel.
-  const maxHoehe = Math.max(120, window.innerHeight - 300);
+  // Auf flachen Fenstern bleibt oben/unten Platz fuer Titel und Untertitel
+  // sowie fuer die Tableiste, damit das Wort nicht unten abgeschnitten wird.
+  const maxHoehe = Math.max(120, window.innerHeight - 320);
   const info = berechneSternwort(breite, maxHoehe);
   platz.style.height = info.hoehe + "px";
   const r = platz.getBoundingClientRect();
   if(!r.width) return;
   const ziele = info.punkte.map(p => ({ x: r.left + p.x, y: r.top + p.y }));
 
+  // Falls noetig zusaetzliche Wort-Sterne erzeugen. Sie kommen aus einem
+  // eigenen Vorrat, damit der Hintergrund nicht geleert wird.
+  while(wortSterne.length < ziele.length) wortSterne.push(sternFuellen(sternB, sternH));
+
   // Alte Zuordnungen loesen und die Sterne neu mischen, damit das Wort bei
-  // jedem Aufbau anders aussieht.
-  for(const s of sterne) delete s.form;
-  const kandidaten = sterne.slice();
+  // jedem Aufbau anders aussieht. Die Startpunkte liegen zufaellig ueber den
+  // ganzen Bildschirm, damit die Sterne von ueberall hereinfliegen.
+  for(const s of wortSterne){ delete s.form; delete s.frei; }
+  const kandidaten = wortSterne.slice();
   for(let i = kandidaten.length - 1; i > 0; i--){
     const j = (Math.random() * (i + 1)) | 0;
     const t = kandidaten[i]; kandidaten[i] = kandidaten[j]; kandidaten[j] = t;
@@ -240,8 +253,8 @@ function starteSternFormung(){
   const n = Math.min(ziele.length, kandidaten.length);
   for(let i = 0; i < n; i++){
     const s = kandidaten[i];
-    const sx = (((s.x - parallaxX * s.tiefe) % sternB) + sternB) % sternB;
-    const sy = (((s.y - parallaxY * s.tiefe) % sternH) + sternH) % sternH;
+    const sx = Math.random() * sternB;
+    const sy = Math.random() * sternH;
     s.form = {
       sx, sy, ex: ziele[i].x, ey: ziele[i].y,
       t0: jetzt + Math.random() * 900,
@@ -258,16 +271,11 @@ function starteSternFormung(){
 function beendeSternFormung(){
   if(!sternFormAktiv) return;
   const jetzt = performance.now();
-  for(const s of sterne){
+  for(const s of wortSterne){
     if(!s.form) continue;
-    // An der zuletzt gezeichneten Stelle in den normalen Sternenhimmel
-    // uebergeben, damit nichts springt. Die Sterne merken sich zusaetzlich,
-    // dass sie sanft von der Worthelligkeit zurueckblenden sollen.
-    if(Number.isFinite(s.lastX)){
-      s.x = (((s.lastX + parallaxX * s.tiefe) % sternB) + sternB) % sternB;
-      s.y = (((s.lastY + parallaxY * s.tiefe) % sternH) + sternH) % sternH;
-      s.loest = { t0: jetzt, dauer: WORT_LOESE_MS };
-    }
+    // Die Wort-Sterne bleiben an ihrer Stelle und blenden weich aus, wahrend
+    // der normale Sternenhimmel unveraendert weiterlaeuft.
+    s.frei = { t0: jetzt, dauer: WORT_LOESE_MS, x0: s.lastX, y0: s.lastY };
     delete s.form;
   }
   sternFormAktiv = false;
@@ -294,10 +302,9 @@ export function drawStarsFixed(zeit){
   parallaxX += (targetX - parallaxX) * 0.08;
   parallaxY += (targetY - parallaxY) * 0.08;
 
-  // Zuerst den normalen Sternenhimmel zeichnen. Sterne, die gerade das Wort
-  // gebildet haben, blenden dabei sanft in ihren Normalzustand zurueck.
-  for(const s of sterne){
-    if(sternFormAktiv && s.form) continue;
+  // Normalen Sternenhimmel zeichnen. Dieser Vorrat bleibt immer vollstaendig,
+  // egal welche Ansicht gerade aktiv ist.
+  const zeichneNormal = (s) => {
     s.y -= s.geschwindigkeit;
     if(s.y < 0) s.y += h;
     // Der Rest wird gekappt, sonst springen die Sterne am Rand, sobald die
@@ -305,32 +312,22 @@ export function drawStarsFixed(zeit){
     const drawX = (((s.x - parallaxX * s.tiefe) % b) + b) % b;
     const drawY = (((s.y - parallaxY * s.tiefe) % h) + h) % h;
     const funkeln = 1 + s.blink * Math.sin(sekunden * s.rate + s.ph);
-    let alpha = s.alpha * funkeln;
-    let groesse = 1;
-    if(s.loest){
-      const p = Math.min(1, (zeit - s.loest.t0) / s.loest.dauer);
-      if(p >= 1){
-        delete s.loest;
-      } else {
-        alpha *= 1 + (WORT_HELL - 1) * (1 - p);
-        groesse = 1 + (WORT_GROESSE - 1) * (1 - p);
-      }
-    }
-    starCtx.globalAlpha = Math.max(0, Math.min(1, alpha));
+    starCtx.globalAlpha = Math.max(0, Math.min(1, s.alpha * funkeln));
     if(s.bild){
-      const g = s.halbeGroesse * groesse;
+      const g = s.halbeGroesse;
       starCtx.drawImage(s.bild, drawX - g, drawY - g, g * 2, g * 2);
     } else {
       starCtx.fillStyle = "#fff";
-      starCtx.fillRect(drawX, drawY, s.size * groesse, s.size * groesse);
+      starCtx.fillRect(drawX, drawY, s.size, s.size);
     }
-  }
+  };
+  for(const s of sterne) zeichneNormal(s);
 
-  // Danach die Wortsterne, damit sich das Wort klar vom bestehenden Himmel
-  // abhebt, ohne dass der Hintergrund abgedunkelt werden muss.
-  if(sternFormAktiv){
-    for(const s of sterne){
-      if(!s.form) continue;
+  // Wort-Sterne danach zeichnen. Sie existieren nur fuer das Wort: auf dem
+  // Startfenster bilden sie "COSMOS", ansonsten blenden sie nach dem Wechsel
+  // sanft aus. Der normale Sternenhimmel bleibt davon unberuehrt.
+  for(const s of wortSterne){
+    if(sternFormAktiv && s.form){
       const f = s.form;
       const roh = (zeit - f.t0) / f.dauer;
       const t = roh <= 0 ? 0 : roh >= 1 ? 1 : roh;
@@ -350,6 +347,24 @@ export function drawStarsFixed(zeit){
       } else {
         starCtx.fillStyle = "#fff";
         starCtx.fillRect(x, y, s.size * WORT_GROESSE, s.size * WORT_GROESSE);
+      }
+      continue;
+    }
+    if(s.frei){
+      const p = Math.min(1, (zeit - s.frei.t0) / s.frei.dauer);
+      if(p >= 1){
+        delete s.frei;
+        continue;
+      }
+      const funkeln = 1 + s.blink * Math.sin(sekunden * s.rate + s.ph);
+      const groesse = 1 + (WORT_GROESSE - 1) * (1 - p);
+      starCtx.globalAlpha = Math.max(0, Math.min(1, s.alpha * funkeln * WORT_HELL * (1 - p)));
+      if(s.bild){
+        const g = s.halbeGroesse * groesse;
+        starCtx.drawImage(s.bild, s.frei.x0 - g, s.frei.y0 - g, g * 2, g * 2);
+      } else {
+        starCtx.fillStyle = "#fff";
+        starCtx.fillRect(s.frei.x0, s.frei.y0, s.size * groesse, s.size * groesse);
       }
     }
   }
