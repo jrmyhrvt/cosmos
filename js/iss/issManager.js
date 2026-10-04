@@ -185,26 +185,27 @@ export function globePointVisibility(instance, lon, lat){
 // Kugel mit und sieht auf jedem Bildschirm gleich aus.
 export const ISS_RING_FACTOR = 1.03;
 
-// Vergroesserung des 3D-Modells gegenueber der echten Groesse. Die ISS ist
-// 0,0017 % des Erdradius und damit auf dem Globen unsichtbar. Mit diesem
-// Wert misst sie rund 6 Grad Bogen: bei maximalem Zoom nimmt sie etwa zwei
-// Drittel der Bildhoehe ein, davor ist sie ein kleiner Punkt. In der Szene
-// verankert waechst sie mit dem Zoom mit, statt eine Pixelgroesse zu behalten.
-export const ISS_MODELL_MASSSTAB = 0.0015;
+// Wie gross die Station auf dem Globus gezeigt wird, als Anteil des Kugelradius.
+// Die echte ISS ist 0,0017 % des Erdradius und damit ein Punkt - sie muss also
+// ueberhoeht werden. Der Wert ist aus dem alten, gezeichneten Modell
+// uebernommen: bei maximalem Zoom nimmt die Station damit rund zwei Drittel der
+// Bildhoehe ein, davor ist sie ein kleiner Punkt. In der Szene verankert waechst
+// sie mit dem Zoom mit, statt eine Pixelgroesse zu behalten.
+export const ISS_MODELL_ANTEIL = 0.105;
 
 export function globePointOnNearSide(instance, lon, lat){
   return globePointVisibility(instance, lon, lat) > 0;
 }
 
-/* --- Echtes NASA-Modell statt gezeichnetem ---------------------------------
-   Das gezeichnete 3D-Modell ist der Notnagel fuer Geraete ohne WebGL. Sobald
-   der Viewer laedt, uebernimmt die echte NASA-Datei: sie liegt als eigene Ebene
-   ueber dem Canvas und wird so positioniert, dass sie auf derselben Stelle steht
-   wie das gezeichnete Modell. Nachgeladen wird erst beim Zoom - die Datei ist
-   44 MB gross und wird auf der ISS-Seite nicht jeder brauchen.
+/* --- Echtes NASA-Modell der Station ----------------------------------------
+   Die Station kommt als glTF-Datei von der NASA-Webseite, nicht aus dem Code.
+   Sie liegt als eigene Ebene ueber dem Canvas und wird so positioniert, dass sie
+   auf derselben Stelle steht wie die Station: mitdrehen beim Ziehen, mit dem
+   Zoom wachsen, hinter dem Horizont verschwinden. Nachgeladen wird sofort beim
+   Oeffnen der ISS-Seite - die Datei ist 44 MB gross, das Warten faellt dann
+   nicht auf, wenn die Station in den Blick kommt.
    -------------------------------------------------------------------------- */
 const MODEL_VIEWER_VERSION = "4.3.1";
-const MODELL_LADEN_AB_ZOOM = 2.2;   // ab hier wird das Modell sichtbar
 const MODELL_KANTE = 300;            // Kantenlaenge des Viewer-Elements in CSS-Pixeln
 // model-viewer legt das Modell so in die Kamera, dass seine Huellkugel genau in
 // das Bild passt. Die Station ist ein aus Platten gebautes Gitter, ihre
@@ -225,19 +226,6 @@ function ladeModelViewer(){
     document.head.appendChild(s);
   });
   return modelViewerLaden;
-}
-
-// Laengste Kante des gezeichneten Modells, in seinen eigenen Einheiten. Einmal
-// berechnet, dann nur noch gelesen.
-let modellUmfang = null;
-function issModellUmfang(){
-  if(modellUmfang !== null) return modellUmfang;
-  let max = 0;
-  for(const teil of ISS_TEILE){
-    for(const p of teil.punkte) max = Math.max(max, Math.abs(p[0]), Math.abs(p[1]), Math.abs(p[2]));
-  }
-  modellUmfang = max * 2 || 1;
-  return modellUmfang;
 }
 
 // Viewer nachladen und das Overlay anlegen. Mehrfach aufrufbar, ohne zu duplizieren.
@@ -284,11 +272,11 @@ function modellVorbereiten(instance){
 }
 
 // Das echte Modell auf die Stelle der Station setzen. Gibt false zurueck, wenn es
-// noch nicht bereit ist - dann zeichnet der Aufrufer weiter sein Modell.
+// noch nicht geladen ist - bis dahin ist an der Stelle nur der rote Punkt.
 function setzeModell(instance, punkt, anteil){
   const el = instance.modellEl;
   if(!el || !instance.modellGeladen) return false;
-  const size = instance.radius * ISS_MODELL_MASSSTAB * issModellUmfang() * (instance.modellFaktor || MODELL_HUELLKUGEL);
+  const size = instance.radius * ISS_MODELL_ANTEIL * (instance.modellFaktor || MODELL_HUELLKUGEL);
   el.style.visibility = "visible";
   el.style.opacity = anteil.toFixed(3);
   // Das Element ist unveraendert 300 px gross und wird nur skaliert: eine
@@ -497,9 +485,6 @@ export function drawGlobeFrame(instance, world){
   // wuerde sie am Rand von der Kugel abgeschnitten. GloStar zeigt den Globus
   // ohne ISS: dort gehoert sie thematisch nicht hin.
   if(instance.showIss && Number.isFinite(currentIssLat) && Number.isFinite(currentIssLon)){
-    // Erst laden, wenn die Station auch wirklich gebraucht wird. Vor dem Zoom
-    // ist weder das gezeichnete noch das echte Modell zu sehen.
-    if(instance.zoom >= MODELL_LADEN_AB_ZOOM) modellVorbereiten(instance);
     // Sehr dichte Abtastung: an den Polen wechselt die Laenge schnell, und
     // mit zu wenigen Punkten bricht die Bahn dort in sichtbare Zacken aus.
     const SAMPLES = 900;
@@ -554,55 +539,22 @@ export function drawGlobeFrame(instance, world){
     // Ab diesem Zoom wird die Station als 3D-Modell gezeigt. Alles andere
     // bleibt liegen: der Globus, die Bahnen, die Beschriftung kommen nicht weg.
     if(issPoint && instance.zoom >= 3){
-      // Das Modell steht senkrecht auf der Erdoberflaehe und zeigt in
-      // Flugrichtung der Bahn - es fliegt also sichtbar die Bahn entlang.
-      const track = issGroundTrack(currentIssLat, currentIssLon, 0, 0.02, 2);
-      const to = track[1] || track[0];
-      const rad = Math.PI / 180;
-      const phi = currentIssLat * rad, lam = currentIssLon * rad;
-      const hoch = [Math.cos(phi)*Math.cos(lam), Math.cos(phi)*Math.sin(lam), Math.sin(phi)];
-      const richtungLaenge = [to[0], to[1], 0];
-      const grad = d => d * rad;
-      const dLat = grad((to[0] - currentIssLat));
-      const dLon = grad((to[1] - currentIssLon)) * Math.cos(phi);
-      const flug = [dLon, dLat, 0];
-      const laengeF = Math.hypot(flug[0], flug[1]) || 1;
-      flug[0] /= laengeF; flug[1] /= laengeF;
-      // Senkrecht auf die Erde, aber in der Ebene der Bahnebene
-      const quer = [hoch[1]*flug[2] - hoch[2]*flug[1],
-                    hoch[2]*flug[0] - hoch[0]*flug[2],
-                    hoch[0]*flug[1] - hoch[1]*flug[0]];
-      const laengeQ = Math.hypot(quer[0], quer[1], quer[2]) || 1;
-      quer[0] /= laengeQ; quer[1] /= laengeQ; quer[2] /= laengeQ;
-      const senkrecht = [quer[1]*hoch[2] - quer[2]*hoch[1],
-                         quer[2]*hoch[0] - quer[0]*hoch[2],
-                         quer[0]*hoch[1] - quer[1]*hoch[0]];
-      // Spalten der Matrix: x = Flugrichtung, y = quer, z = nach oben
-      const richtung = [flug, quer, senkrecht];
-      // Blickrichtung: von aussen in die Kugel, dort wo der Globus gerade
-      // zeigt. Beim Drehen dreht sich das Modell dadurch mit.
-      const phi0 = instance.viewLat * rad, lam0 = instance.viewLon * rad;
-      const blick = [Math.cos(phi0)*Math.cos(lam0), Math.cos(phi0)*Math.sin(lam0), Math.sin(phi0)];
-      // Bei Zoom 3 blendet das Modell weich ein, ab Zoom 5 ist es voll da.
+      // Bei Zoom 3 blendet die Station weich ein, ab Zoom 5 ist sie voll da.
       const anteil = Math.max(0, Math.min(1, (instance.zoom - 3) / 2));
-      // Bei starkem Zoom liegt die Station schnell ausserhalb des Bildes.
-      // Dann wird gar nichts gezeichnet, statt 250 Flaechen ins Leere zu
-      // zeichnen. Der Rand ist grosszuegig, weil das Modell breiter ist als
-      // der Punkt selbst.
+      // Bei starkem Zoom liegt die Station schnell ausserhalb des Bildes. Dann
+      // wird sie gar nicht erst gesetzt, statt sie ins Leere zu stellen. Der
+      // Rand ist grosszuegig, weil das Modell breiter ist als der Punkt selbst.
       const ausserhalb = !issPoint ||
         issPoint[0] < -instance.px(120) || issPoint[0] > instance.width + instance.px(120) ||
         issPoint[1] < -instance.px(120) || issPoint[1] > instance.height + instance.px(120);
       if(anteil > 0 && !ausserhalb &&
          globePointVisibility(instance, currentIssLon, currentIssLat) > 0){
-        // Das echte Modell hat Vorrang; solange es noch nicht da ist, zeichnet
-        // der Code die Station als Notnagel.
-        if(!setzeModell(instance, issPoint, anteil)){
-          drawIssModel(ctx, instance, projection, center,
-            {hoch, flug, quer, senkrecht}, Date.now() / 4200, anteil);
-        }
+        setzeModell(instance, issPoint, anteil);
       } else {
         versteckeModell(instance);
       }
+    } else {
+      versteckeModell(instance);
     }
   }
 
@@ -665,269 +617,6 @@ export function drawGlobeFrame(instance, world){
   ctx.strokeStyle = "rgba(255,255,255,.75)";
   ctx.lineWidth = instance.px(1.5);
   ctx.stroke();
-
-}
-
-// ---------------------------------------------------------------------------
-// 3D-Modell der ISS
-//
-// Vollstaendig aus Code: eine Liste von Flaechen mit Punkten im lokalen
-// Koordinatensystem der Station. x zeigt in Flugrichtung, y laeuft entlang
-// des Trusses, z zeigt nach oben aus der Erde heraus. Keine externe Datei, kein
-// weiterer Download - so bleibt die App eine einzige Datei.
-export const ISS_TEILE = (() => {
-  const teile = [];
-  const quadrat = (a, b, c, d, farbe) => teile.push({punkte: [a, b, c, d], farbe});
-  const dreieck = (a, b, c, farbe) => teile.push({punkte: [a, b, c], farbe});
-  const quader = (x, y, z, dx, dy, dz, farbe) => {
-    const p = (i, j, k) => [x + dx*i, y + dy*j, z + dz*k];
-    quadrat(p(0,0,0), p(0,1,0), p(0,1,1), p(0,0,1), farbe);
-    quadrat(p(1,0,0), p(1,0,1), p(1,1,1), p(1,1,0), farbe);
-    quadrat(p(0,0,0), p(0,0,1), p(1,0,1), p(1,0,0), farbe);
-    quadrat(p(0,1,0), p(1,1,0), p(1,1,1), p(0,1,1), farbe);
-    quadrat(p(0,0,1), p(0,1,1), p(1,1,1), p(1,0,1), farbe);
-    quadrat(p(0,0,0), p(1,0,0), p(1,1,0), p(0,1,0), farbe);
-  };
-  const platte = (xa, xb, ya, yb, za, zb, farbe) =>
-    quader(Math.min(xa, xb), Math.min(ya, yb), Math.min(za, zb),
-           Math.abs(xb - xa), Math.abs(yb - ya), Math.abs(zb - za), farbe);
-
-  // Kreuzprodukt zweier Kanten ab pts[0]
-  const norm = pts => {
-    const u = [pts[1][0]-pts[0][0], pts[1][1]-pts[0][1], pts[1][2]-pts[0][2]];
-    const v = [pts[2][0]-pts[0][0], pts[2][1]-pts[0][1], pts[2][2]-pts[0][2]];
-    return [u[1]*v[2]-u[2]*v[1], u[2]*v[0]-u[0]*v[2], u[0]*v[1]-u[1]*v[0]];
-  };
-  const dot = (a, b) => a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
-  // Flaeche so ablegen, dass ihre Normale in Richtung ref zeigt. Nur so
-  // stimmt die Rueckseiten-Kuerzung beim Zeichnen fuer jede Achse.
-  const flaeche = (pts, farbe, ref) => {
-    if(dot(norm(pts), ref) >= 0) quadrat(pts[0], pts[1], pts[2], pts[3], farbe);
-    else quadrat(pts[0], pts[3], pts[2], pts[1], farbe);
-  };
-  const ecke = (pts, farbe, ref) => {
-    if(dot(norm(pts), ref) >= 0) dreieck(pts[0], pts[1], pts[2], farbe);
-    else dreieck(pts[0], pts[2], pts[1], farbe);
-  };
-
-  // Zylinder entlang x, y oder z, optional um "mitte" versetzt. Die echten
-  // Module und Raumschiffe sind Roehren, keine Quader.
-  const zylinder = (achse, a0, a1, r, farbe, seg = 14, mitte = [0, 0, 0]) => {
-    const ai = achse === "x" ? 0 : achse === "y" ? 1 : 2;
-    const P = (a, c, s) => {
-      const p = achse === "x" ? [a, c, s] : achse === "y" ? [c, a, s] : [c, s, a];
-      return [p[0] + mitte[0], p[1] + mitte[1], p[2] + mitte[2]];
-    };
-    for(let i = 0; i < seg; i++){
-      const t0 = i / seg * Math.PI * 2, t1 = (i + 1) / seg * Math.PI * 2;
-      const c0 = Math.cos(t0) * r, s0 = Math.sin(t0) * r;
-      const c1 = Math.cos(t1) * r, s1 = Math.sin(t1) * r;
-      // Nach aussen zeigt die Flaeche, wenn ihre Normale vom Achs-Mittelpunkt
-      // wegzeigt. Die Achskomponente wird dabei herausgerechnet.
-      const m0 = Math.cos((t0 + t1) / 2), m1 = Math.sin((t0 + t1) / 2);
-      const radial = achse === "x" ? [0, m0, m1] : achse === "y" ? [m0, 0, m1] : [m0, m1, 0];
-      flaeche([P(a0,c0,s0), P(a0,c1,s1), P(a1,c1,s1), P(a1,c0,s0)], farbe, radial);
-      if(i === 0){
-        const laengs = [0, 0, 0]; laengs[ai] = -1;
-        const laengs2 = [0, 0, 0]; laengs2[ai] = 1;
-        for(let k = 0; k < seg; k++){
-          const q0 = k / seg * Math.PI * 2, q1 = (k + 1) / seg * Math.PI * 2;
-          ecke([P(a0,0,0), P(a0,Math.cos(q0)*r,Math.sin(q0)*r), P(a0,Math.cos(q1)*r,Math.sin(q1)*r)], farbe, laengs);
-          ecke([P(a1,0,0), P(a1,Math.cos(q0)*r,Math.sin(q0)*r), P(a1,Math.cos(q1)*r,Math.sin(q1)*r)], farbe, laengs2);
-        }
-      }
-    }
-  };
-  const rohr = (x0, x1, r, farbe, seg) => zylinder("x", x0, x1, r, farbe, seg);
-
-  const grauTruss = [188, 196, 205];
-  const weiss     = [216, 222, 229];
-  const solar     = [24, 44, 90];
-  const solarRahmen = [72, 96, 146];
-  const radiator  = [234, 239, 245];
-  const dunkel    = [120, 128, 138];
-  const mli       = [191, 150, 62];
-  const mliDunkel = [150, 112, 44];
-
-  // Integrierter Truss (y-Achse). Echte Laenge 108 m, hier 90 Einheiten bei
-  // 1,2 m je Einheit. Vier Laengsstreben plus Querrahmen - das offene
-  // Gitterwerk, das die echte Station zeigt.
-  const TH = 45, TX = 1.55, TZ = 1.45;
-  for(const sx of [-1, 1]){
-    for(const sz of [-1, 1]){
-      quader(sx*TX - 0.28, -TH, sz*TZ - 0.28, 0.56, 2*TH, 0.56, grauTruss);
-    }
-  }
-  for(let y = -TH; y <= TH; y += 5){
-    quader(-TX - 0.22, y - 0.22, -TZ - 0.22, 2*TX + 0.44, 0.44, 2*TZ + 0.44, grauTruss);
-  }
-
-  // Druckmodule entlang der Flugrichtung. Aussendurchmesser ~4,2 m -> r 1,75.
-  rohr(-21.5, -19.5, 1.5, dunkel, 12);   // Heckstutzen
-  rohr(-19.5, -13, 1.9, mli, 14);        // Swesda, goldene Isolierung
-  rohr(-13, -8, 1.75, weiss, 12);        // Sarja
-  rohr(-8, -6, 2.05, weiss, 12);         // Unity (Knoten)
-  rohr(-6, 4, 1.75, weiss, 14);          // Destiny (US-Labor)
-  rohr(4, 6, 2.05, weiss, 12);           // Harmony (Knoten)
-  rohr(6, 11.5, 1.75, weiss, 12);        // Tranquility / PMM
-  rohr(11.5, 13.5, 1.5, dunkel, 10);     // PMA
-  // Columbus (Steuerbord) und Kibo (Backbord) sitzen quer am Harmony-Knoten.
-  zylinder("y", 2, 7.8, 1.75, weiss, 12, [5.2, 0, 0]);
-  zylinder("y", -2, -11, 1.75, weiss, 12, [5.2, 0, 0]);
-  // Cupola, der Beobachtungsdom zur Erde hin.
-  zylinder("z", -1.8, -2.9, 1.15, weiss, 12, [-1, 0, 0]);
-  zylinder("z", -2.9, -3.3, 0.62, dunkel, 12, [-1, 0, 0]);
-
-  // Kuehler (weiss) in der Truss-Mitte.
-  for(const sy of [-1, 1]){
-    for(const sx of [-1, 1]){
-      platte(sx*3, sx*15, sy*8 - 1.4, sy*8 + 1.4, -0.3, 0.3, radiator);
-    }
-  }
-
-  // Acht Solarfluegel an vier Truss-Positionen, je Paar zwei Arme nach +/-x.
-  // Echte Fluegel 36 m lang, 4,6 m breit -> 30 x 3,8 Einheiten.
-  const WX = 27.5, WW = 3.8;
-  for(const sy of [-1, 1]){
-    for(const py of [16.5, 39]){
-      const yc = sy * py;
-      for(const sx of [-1, 1]){
-        const xa = sx * 3, xb = sx * (3 + WX);
-        platte(xa, xb, yc - WW/2, yc + WW/2, -0.35, 0.35, solar);
-        platte(xa, xb, yc - WW/2 - 0.35, yc - WW/2, -0.42, 0.42, solarRahmen);
-        platte(xa, xb, yc + WW/2, yc + WW/2 + 0.35, -0.42, 0.42, solarRahmen);
-        platte(xa, xb, yc - 0.18, yc + 0.18, -0.4, 0.4, solarRahmen);
-        for(let k = 1; k <= 5; k++){
-          const xr = sx * (3 + WX * k / 6);
-          platte(xr - 0.16, xr + 0.16, yc - WW/2, yc + WW/2, -0.4, 0.4, solarRahmen);
-        }
-        platte(sx*1.5, sx*3, yc - 0.6, yc + 0.6, -0.65, 0.65, dunkel);
-      }
-    }
-  }
-
-  // Angedockte Raumschiffe: Progress/Soyuz am russischen, Dragon am US-Ende.
-  rohr(-27, -24, 1.25, dunkel, 12);
-  rohr(-24, -22.5, 1.5, weiss, 12);
-  rohr(13.5, 17, 1.25, dunkel, 12);
-  rohr(17, 19.5, 1.55, weiss, 12);
-  zylinder("x", 19.5, 20.6, 1.0, dunkel, 12);
-  return teile;
-})();
-
-// Die Station wird als Teil der Szene gezeichnet, nicht als Aufkleber auf dem
-// Bildschirm: jeder Eckpunkt bekommt eine Position auf der Erdkugel und laeuft
-// durch dieselbe Projektion wie Land, Bahnen und Kugelrand. Dadurch waechst das
-// Modell beim Zoomen von selbst mit, verkuenzt sich am Horizont wie alles
-// andere und bleibt unverzerrt.
-export function drawIssModel(ctx, instance, projection, center, basis, spin, alpha){
-  const {hoch, flug, quer, senkrecht} = basis;
-  const rad = Math.PI / 180;
-  // Die echte ISS ist 109 m breit, die Erde 12 742 km - auf dem Globus waere
-  // sie ein Punkt. Deshalb wird sie hier um ISS_MODELL_MASSSTAB vergroessert
-  // dargestellt. Sie waechst aber mit dem Zoom mit und ist am Ende genauso
-  // gross wie ein Objekt, dem man sich naehern wuerde.
-  const M = ISS_MODELL_MASSSTAB;
-  const flaechen = [];
-  // Sonne von schräg oben links, dazu das Licht, das von der Erde unter der
-  // Station reflektiert wird. Die Erde ist riesig und sehr hell - ohne diesen
-  // zweiten Anteil bleiben die Unterseiten schwarz, obwohl sie in Wirklichkeit
-  // blau aufleuchten.
-  const licht = [-0.42, 0.5, 0.76];
-  const erdLicht = [0.52, 0.64, 0.86];
-  // Halbvektor fuer den Glanzpunkt. Die Kamera blickt von aussen auf die
-  // Station, ihre Richtung ist also die Radiale hoch - dieselbe, auf der die
-  // Station schwebt.
-  for(const teil of ISS_TEILE){
-    const c = Math.cos(spin), sn = Math.sin(spin);
-    const ecken = teil.punkte.map(p => {
-      const rx = p[0]*c - p[1]*sn, ry = p[0]*sn + p[1]*c, rz = p[2];
-      // Lokale Achsen in die Erde drehen
-      const wx = rx*flug[0] + ry*quer[0] + rz*senkrecht[0];
-      const wy = rx*flug[1] + ry*quer[1] + rz*senkrecht[1];
-      const wz = rx*flug[2] + ry*quer[2] + rz*senkrecht[2];
-      // Station sitzt auf dem schwebenden Ring, wie ihre Bahn
-      const X = hoch[0]*ISS_RING_FACTOR + wx*M;
-      const Y = hoch[1]*ISS_RING_FACTOR + wy*M;
-      const Z = hoch[2]*ISS_RING_FACTOR + wz*M;
-      const laenge = Math.hypot(X, Y, Z);
-      const lon = Math.atan2(Y, X) / rad;
-      const lat = Math.asin(Z / laenge) / rad;
-      const proj = projection([lon, lat]);
-      if(!proj) return null;
-      // Die Projection rechnet mit dem Einheitsradius, der Abstand zur Erde
-      // kommt also als Skalierung vom Kugelmittelpunkt aus dazu.
-      return [center[0] + (proj[0] - center[0]) * laenge,
-              center[1] + (proj[1] - center[1]) * laenge,
-              X, Y, Z];
-    });
-    if(ecken.some(e => !e)) continue;                 // Teil liegt hinten
-    // Flaechennormale aus zwei Kanten im Erdkoordinatensystem
-    const a = [ecken[1][2]-ecken[0][2], ecken[1][3]-ecken[0][3], ecken[1][4]-ecken[0][4]];
-    const b = [ecken[2][2]-ecken[0][2], ecken[2][3]-ecken[0][3], ecken[2][4]-ecken[0][4]];
-    let n = [a[1]*b[2] - a[2]*b[1], a[2]*b[0] - a[0]*b[2], a[0]*b[1] - a[1]*b[0]];
-    const laengeN = Math.hypot(n[0], n[1], n[2]) || 1;
-    n = [n[0]/laengeN, n[1]/laengeN, n[2]/laengeN];
-
-    // Rueckseiten weglassen. Das ist der groesste Gewinn an Schaerfe: ohne
-    // diese Kuerzung liegen die hinteren Flaechen zwischen den vorderen und
-    // faerben sie mit einem falschen Ton ein. Der Normalenvektor zeigt nach
-    // aussen, die Kamera steht entlang hoch - ein Punkt ist also sichtbar,
-    // wenn die Normale zur Kamera zeigt.
-    const zurKamera = n[0]*hoch[0] + n[1]*hoch[1] + n[2]*hoch[2];
-    if(zurKamera <= 0.02) continue;
-
-    const sonne = Math.max(0, n[0]*licht[0] + n[1]*licht[1] + n[2]*licht[2]);
-    const erde = Math.max(0, -(n[0]*hoch[0] + n[1]*hoch[1] + n[2]*hoch[2]));
-    // Halbvektor Sonne/Blickrichtung fuer den Glanzpunkt
-    const hx = licht[0] + hoch[0], hy = licht[1] + hoch[1], hz = licht[2] + hoch[2];
-    const hl = Math.hypot(hx, hy, hz) || 1;
-    const glanzFleck = Math.pow(Math.max(0, (n[0]*hx + n[1]*hy + n[2]*hz) / hl), 26);
-    // Zusatzlicht am Rand: nimmt den Flaechen die harte Trennlinie zur
-    // dahinterliegenden Flaeche und laesst die Station plastisch wirken.
-    const rand = Math.pow(1 - zurKamera, 3) * 0.18;
-
-    const tiefe = ecken.reduce((sum, e) => sum + e[2]*hoch[0] + e[3]*hoch[1] + e[4]*hoch[2], 0) / 4;
-    // Grundhelligkeit bewusst hoch: die Station wirkte auf dem dunklen Globus
-    // sonst zu duenn. Nur die Helligkeit, nicht die Farbwerte selbst.
-    flaechen.push({ecken, farbe: teil.farbe, ton: 0.42 + 1.0*sonne + 0.5*erde,
-                   erde, glanz: glanzFleck, rand, tiefe});
-  }
-  // Von hinten nach vorn zeichnen, sonst liegen die nahen Flaechen drunter
-  flaechen.sort((a, b) => a.tiefe - b.tiefe);
-  for(const f of flaechen){
-    ctx.beginPath();
-    ctx.moveTo(f.ecken[0][0], f.ecken[0][1]);
-    for(let i = 1; i < f.ecken.length; i++) ctx.lineTo(f.ecken[i][0], f.ecken[i][1]);
-    ctx.closePath();
-    const [r, g, b] = f.farbe;
-    // Grundton aus Sonne und Erdschein, der Erdschein leicht blaustichig.
-    let R = r * (f.ton - f.erde * 0.22) + f.erde * 34;
-    let G = g * (f.ton - f.erde * 0.12) + f.erde * 44;
-    let B = b * (f.ton + f.erde * 0.10) + f.erde * 62;
-    // Glanzpunkt und Randlicht kommen additiv dazu. Kraeftig, damit die
-    // Station auf dem dunklen Globus hell glaenzt.
-    R += 255 * f.glanz * 0.85 + 255 * f.rand * 0.6;
-    G += 255 * f.glanz * 0.85 + 255 * f.rand * 0.6;
-    B += 255 * f.glanz * 0.85 + 255 * f.rand * 0.65;
-    // Ein weicher Weiss-Schein liegt als Schatten hinter jeder Flaeche.
-    // Ueber den dunklen Meeren hebt er die Station sichtbar ab, ohne ihre
-    // Farbe, Form oder Groesse zu veraendern.
-    ctx.shadowColor = "rgba(255,255,255,.55)";
-    ctx.shadowBlur = instance.px(4);
-    ctx.fillStyle = `rgba(${Math.round(Math.max(0, Math.min(255, R)))},${Math.round(Math.max(0, Math.min(255, G)))},${Math.round(Math.max(0, Math.min(255, B)))},${alpha})`;
-    ctx.fill();
-    // Der Schein darf nicht auf der feinen Silhouettenkante liegen.
-    ctx.shadowBlur = 0;
-    ctx.shadowColor = "transparent";
-    // Eine feine, dunkle Kante an den Silhouetten macht die Station auch auf
-    // hellem Grund klar erkennbar. Innenkanten bleiben weg, sonst zerfaellt das
-    // Gitterwerk in einem Gitter aus Linien.
-    ctx.lineWidth = instance.px(0.6);
-    ctx.lineJoin = "round";
-    ctx.strokeStyle = `rgba(0,0,0,${0.34 * alpha})`;
-    ctx.stroke();
-  }
 }
 
 export function drawGlobeFallback(instance, message){
@@ -1205,6 +894,11 @@ export function mountGlobe(canvasId, statusId, options = {}){
     .catch(() => {
       if(canvas.isConnected) drawGlobeFallback(instance, TRANSLATIONS[currentLang].error_globe);
     });
+
+  // Das Modell der Station wird sofort geholt, nicht erst beim Zoom: die Datei
+  // braucht einen Moment, und sie soll fertig dastehen, wenn die Station in den
+  // Blick kommt. Der GloStar-Globus zeigt keine ISS und laedt deshalb nichts.
+  if(instance.showIss) modellVorbereiten(instance);
 
   if(!globeAnimationId) globeAnimationId = requestAnimationFrame(globeLoop);
 }
