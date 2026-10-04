@@ -37,6 +37,8 @@ und ISS-Live-Globus. Kein Build, kein npm. Auslieferung über GitHub Pages.
   Abschnitts der galaktischen Ebene.
 - ISS-Detailseite: **echtes NASA-3D-Modell** der Station (glTF, `model-viewer`),
   über der Karte; das leichte Code-Modell bleibt im Globus.
+- Ganztägige Termine: Ersatzfenster **24 Stunden** statt 24 Minuten — im
+  Kalender-Export (DTEND ist exklusiv) waren solche Termine dadurch unsichtbar.
 - ISS-Fixes, Kalender-Export (floating), Sternstrahlen-Symmetrie.
 
 ### In Arbeit
@@ -45,7 +47,6 @@ und ISS-Live-Globus. Kein Build, kein npm. Auslieferung über GitHub Pages.
 
 ### Offen / Ideen
 - TLE-Frischepolitik: Warnung oder Abbruch bei veralteten ISS-Daten.
-- `js/api.js`: All-Day-`endMs`-Fallback rechnet 24 **Minuten** statt 24 Stunden.
 
 ---
 
@@ -64,8 +65,8 @@ und ISS-Live-Globus. Kein Build, kein npm. Auslieferung über GitHub Pages.
 ## Todos
 
 - [ ] ISS-Himmel visuell abnehmen: Dichte, Breite und Verlauf des Milchstraßen-Bandes.
+- [ ] ISS-3D-Modell auf dem iPad visuell abnehmen (Ausrichtung, Helligkeit).
 - [ ] TLE-Frischepolitik festlegen und umsetzen.
-- [ ] `js/api.js` All-Day-`endMs`-Fallback von Minuten auf 24 h korrigieren.
 
 ---
 
@@ -75,6 +76,7 @@ Neueste Einträge oben. Format: `Datum | Commit | Änderung`.
 
 | Datum      | Commit    | Änderung |
 |------------|-----------|----------|
+| 2026-10-03 | `7a73e3f` | Ganztägige Termine: Ersatzfenster 24 Stunden statt 24 Minuten. |
 | 2026-10-03 | `0b399d7` | ISS-Detailseite: echtes NASA-3D-Modell der Station (glTF, model-viewer). |
 | 2026-10-03 | `39ac700` | ISS-Globus: Milchstraße als dichteres Sternband statt Ring. |
 | 2026-10-03 | `88845fc` | ISS-Globus: Milchstraßen-Nebelband hinter der Erde (Ring-Fassung, ersetzt). |
