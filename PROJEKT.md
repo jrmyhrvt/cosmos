@@ -85,6 +85,8 @@ Neueste Einträge oben. Format: `Datum | Commit | Änderung`.
 
 | Datum      | Commit    | Änderung |
 |------------|-----------|----------|
+| 2026-10-04 | `aa4bcdd` | ISS-Globus: grobe Detailstufe fuer die Vollansicht, feine 50m-Karte ab Zoom 1.6 - Ziehen wieder mit 60 fps. |
+| 2026-10-04 | `d5311b7` | ISS-Globus: weisse Erde behoben (Ringlaufrichtung beim Vereinfachen). |
 | 2026-10-04 | `d542c66` | ISS-Globus: Natural Earth 50m statt 110m, lokal als eine Datei fuer Globus und Laendersuche; Sichtkreis-Filter beim Zeichnen. |
 | 2026-10-03 | `59d8890` | ISS-Globus: gezeichnetes 3D-Modell entfernt, NASA-Modell lädt sofort. |
 | 2026-10-03 | `0468bf1` | NASA-3D-Modell ersetzt das gezeichnete Modell im Globus (Overlay, laden ab Zoom 2.2). |
