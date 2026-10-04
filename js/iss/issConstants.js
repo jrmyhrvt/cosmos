@@ -29,17 +29,30 @@ export function formatIssLon(v){
 // gerundet auf drei Nachkommastellen und pro Ring vereinfacht: grosse
 // Kuestenlinien bis auf 0,08 Grad (rund 9 km), kleine Inseln unveraendert,
 // sonst verschwaenden Monaco, Tuvalu oder die Malediven ganz. Das Original
-// wiegt 3 MB mit rund 140 Feldern je Land; diese Datei 0,52 MB und damit auch
-// gzip-komprimiert noch rund 185 KB. Bei 0,02 Grad waere die Karte noch
-// schaerfer, kostet aber auf dem Globus rund ein Drittel Bildrate - die
-// grossen Kuestenlinien sind hier der beste Kompromiss.
+// wiegt 3 MB mit rund 140 Feldern je Land; diese Datei 0,48 MB (26.473
+// Punkte) und damit auch gzip-komprimiert noch rund 170 KB. Bei 0,02 Grad
+// waere die Karte noch schaerfer, kostet aber auf dem Globus rund ein
+// Drittel Bildrate - die grossen Kuestenlinien sind hier der beste
+// Kompromiss.
 //
 // Wichtig ist die Ringlaufrichtung: d3 fuellt mit der Nonzero-Regel, ein
 // verdrehtes (eingeschlossenes) Ring zeigt deshalb die ganze Kugel. Der
 // Generator tools/weltkarte.py haelt die Laufrichtung der Natural-Earth-
-// Ringe fest und ersetzt Ringe, die sich beim Vereinfachen selbst schneiden.
+// Ringe fest und vereinfacht bei Selbstschnitten nur feiner, statt den
+// kompletten Originalring zu uebernehmen.
 //
 // Der Globus nutzte vorher 110m: das ist zwar kleiner, laesst Daenemark, Italien,
 // Portugal oder Grossbritannien aber nur als Klumpen erkennen - genau die
 // Kuesten, an denen man die ISS-Ueberfluge ablesen will.
 export const WELTKARTE_URL = "assets/world/laender-50m.json";
+
+// Grobe Detailstufe fuer die ganze Kugel, aus derselben Quelle mit 0,5 Grad
+// und ohne Ringe unter 0,2 Grad (0,30 MB, 15.371 Punkte, gzip rund 100 KB).
+// Sie kostet beim Drehen 7,6 ms je Bild statt 14,9 ms - und auf dem rund
+// 300-Px-Globus der Vollansicht sind 0,5 Grad gegenueber 0,08 Grad nicht zu
+// sehen: beide Stufen ergeben fuer die sichtbare Halbkugel dieselbe
+// Landflaeche. Ab Zoom 1.6 zaehlen die Kuestenlinien, dann wird die feine
+// Karte gezeichnet - dort macht der Sichtkreis-Filter sie wieder billig,
+// weil nur wenige Laender im Bild liegen. Beim Drehen bleiben so 60 fps.
+export const WELTKARTE_GROB_URL = "assets/world/laender-grob.json";
+export const WELT_DETAIL_ZOOM = 1.6;

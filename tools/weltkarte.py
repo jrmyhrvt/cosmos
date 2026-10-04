@@ -35,6 +35,7 @@ import math
 import sys
 
 TOLERANZ = 0.08          # Grad, Douglas-Peucker fuer grosse Kuestenlinien
+TOLERANZ_UNTEN = 0.004   # Grad, darunter wird nicht weiter vereinfacht
 RING_ANTEIL = 0.2        # Toleranz hoechstens so gross wie die Ringweite
 RUNDE = 3                # Nachkommastellen
 FELDER = ["NAME", "NAME_DE", "NAME_EN", "NAME_ES", "NAME_ALT", "ISO_A2", "ISO_A2_EH"]
@@ -94,7 +95,7 @@ def schneidet_sich(ring):
     return False
 
 
-def bearbeite_ring(ring, meldung):
+def bearbeite_ring(ring, meldung, toleranz=TOLERANZ, anteil=RING_ANTEIL, min_weite=0.0):
     """Ein Aussenring: vereinfachen, runden, Laufrichtung und Form sichern."""
     if len(ring) > 1 and ring[0] == ring[-1]:
         ring = ring[:-1]
@@ -102,14 +103,29 @@ def bearbeite_ring(ring, meldung):
     lons = [p[0] for p in ring]
     lats = [p[1] for p in ring]
     weite = max(max(lons) - min(lons), max(lats) - min(lats))
-    gekuerzt = vereinfache([(p[0], p[1]) for p in ring], min(TOLERANZ, RING_ANTEIL * weite))
-    neu = [[round(x, RUNDE), round(y, RUNDE)] for x, y in gekuerzt]
+    if weite < min_weite:
+        return None                                   # unter einem Pixel gross
+    tol = min(toleranz, anteil * weite)
 
-    if len({(p[0], p[1]) for p in neu}) < 3:
-        return None                                   # nichts mehr zu sehen
-    if schneidet_sich(neu + [neu[0]]):
-        meldung("Selbstschnitt ersetzt")
-        neu = gerundet
+    # Regel 5: Selbstschnitte durch halbierte Toleranz bekämpfen, nicht durch
+    # den kompletten Originalring. Sonst wächst ein einziger grosser Ring
+    # (Kanada) wieder auf mehrere Tausend Punkte und die grobe Karte wird
+    # teuer, obwohl sie grob sein sollte. Erst ganz unten greift der
+    # Originalring - Richtigkeit ist wichtiger als Dateigroesse.
+    while True:
+        gekuerzt = vereinfache([(p[0], p[1]) for p in ring], tol)
+        neu = [[round(x, RUNDE), round(y, RUNDE)] for x, y in gekuerzt]
+        if len({(p[0], p[1]) for p in neu}) < 3:
+            return None                               # nichts mehr zu sehen
+        if not schneidet_sich(neu + [neu[0]]):
+            break
+        if tol <= TOLERANZ_UNTEN:
+            meldung("Selbstschnitt ersetzt")
+            neu = gerundet
+            break
+        tol = max(tol / 2, TOLERANZ_UNTEN)
+        meldung("Selbstschnitt vereinfacht")
+
     vorher = flaeche(gerundet)
     nachher = flaeche(neu)
     if vorher * nachher < 0:
@@ -120,17 +136,21 @@ def bearbeite_ring(ring, meldung):
     return neu
 
 
-def verarbeite(quelle, ziel, meldung=lambda text: None):
+def verarbeite(quelle, ziel, meldung=lambda text: None, toleranz=TOLERANZ,
+               anteil=RING_ANTEIL, min_weite=0.0):
     daten = json.load(open(quelle))
     laender = []
     ohne_ringe = 0
     ersetzt = 0
     gedreht = 0
+    schaerfer = 0
 
     def zaehler(text):
-        nonlocal ersetzt, gedreht
-        if text.startswith("Selbstschnitt"):
+        nonlocal ersetzt, gedreht, schaerfer
+        if text.startswith("Selbstschnitt ersetzt"):
             ersetzt += 1
+        elif text.startswith("Selbstschnitt vereinfacht"):
+            schaerfer += 1
         else:
             gedreht += 1
 
@@ -141,7 +161,7 @@ def verarbeite(quelle, ziel, meldung=lambda text: None):
         polys = [geom["coordinates"]] if geom["type"] == "Polygon" else geom["coordinates"]
         neu = []
         for poly in polys:
-            ring = bearbeite_ring(poly[0], zaehler)
+            ring = bearbeite_ring(poly[0], zaehler, toleranz, anteil, min_weite)
             if ring:
                 neu.append([ring])
         if not neu:
@@ -158,9 +178,11 @@ def verarbeite(quelle, ziel, meldung=lambda text: None):
     text = json.dumps(aus, separators=(",", ":"))
     open(ziel, "w").write(text)
     punkte = sum(len(r) for f in laender for poly in f["geometry"]["coordinates"] for r in poly)
-    meldung(f"{len(laender)} Laender, {punkte} Punkte, {len(text)/1024:.0f} KB")
+    meldung(f"{len(laender)} Laender, {punkte} Punkte, {len(text)/1024:.0f} KB, "
+            f"Toleranz {toleranz} Grad, Ringanteil {anteil}")
     meldung(f"{gedreht} Ringe mit gekipptem Vorzeichen zurueckgedreht, "
-            f"{ersetzt} Ringe wegen Selbstschnitt ersetzt, {ohne_ringe} Laender ohne Flaeche")
+            f"{schaerfer} Ringe feiner vereinfacht, {ersetzt} Ringe wegen "
+            f"Selbstschnitt ersetzt, {ohne_ringe} Laender ohne Flaeche")
     pruefe(aus, daten)
     return aus
 
@@ -197,6 +219,14 @@ def pruefe(aus, daten):
 
 
 if __name__ == "__main__":
+    # Feine Karte (Globus beim Hineinzoomen):
+    #   python3 tools/weltkarte.py /tmp/ne50.geojson assets/world/laender-50m.json
+    # Grobe Karte (nur fuer die ganze Kugel, muss beim Drehen schnell sein):
+    #   python3 tools/weltkarte.py /tmp/ne50.geojson assets/world/laender-grob.json 0.5 0.05 0.2
+    #   (Toleranz, Anteil der Ringweite als Grenze, Ringe unter 0,2 Grad raus)
     quelle = sys.argv[1] if len(sys.argv) > 1 else "/tmp/ne50.geojson"
     ziel = sys.argv[2] if len(sys.argv) > 2 else "assets/world/laender-50m.json"
-    verarbeite(quelle, ziel, print)
+    toleranz = float(sys.argv[3]) if len(sys.argv) > 3 else TOLERANZ
+    anteil = float(sys.argv[4]) if len(sys.argv) > 4 else RING_ANTEIL
+    min_weite = float(sys.argv[5]) if len(sys.argv) > 5 else 0.0
+    verarbeite(quelle, ziel, print, toleranz, anteil, min_weite)

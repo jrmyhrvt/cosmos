@@ -1,6 +1,6 @@
 import { currentLang } from "../main.js";
 import { TRANSLATIONS } from "../translations.js";
-import { WELTKARTE_URL } from "./issConstants.js";
+import { WELTKARTE_URL, WELTKARTE_GROB_URL, WELT_DETAIL_ZOOM } from "./issConstants.js";
 export let currentIssLat = null;
 export let currentIssLon = null;
 export let currentIssAlt = null;
@@ -72,6 +72,9 @@ fetchISS();
    -------------------------------------------------------------------------- */
 export let globeWorldData = null;
 export let globeWorldPromise = null;
+// Grobe Detailstufe fuer die Vollansicht, siehe WELT_DETAIL_ZOOM.
+let globeWorldGrob = null;
+let globeGrobPromise = null;
 export let globeAnimationId = null;
 export const globes = new Map();
 
@@ -81,8 +84,11 @@ export const globes = new Map();
 // Laender, die ohnehin hinter dem Horizont oder ausserhalb des Bildes liegen.
 const globeHuelle = new Map();
 
-function merkeHuelle(features){
-  globeHuelle.clear();
+function merkeHuelle(features, nurAnhaengen = false){
+  // Die Huellen liegen je Feature-Objekt. Beide Detailstufen bekommen ihre
+  // eigenen, sonst koennte der Sichtkreis-Filter bei der groben Karte nicht
+  // greifen (imSichtkreis gibt dann ohne Eintrag freie Fahrt).
+  if(!nurAnhaengen) globeHuelle.clear();
   for(const f of features || []){
     const g = f.geometry;
     if(!g) continue;
@@ -168,8 +174,29 @@ export function setGlobeLand(land){
   }
 }
 
+// Die grobe Karte wird nicht abgewartet: sie ist nur eine schnellere Darstellung
+// derselben Kugel. Fehlt sie, zeichnet der Globus die feine Karte.
+function ladeGrobeWeltkarte(){
+  if(globeWorldGrob || globeGrobPromise) return;
+  globeGrobPromise = fetch(WELTKARTE_GROB_URL, {cache:"force-cache"})
+    .then(response => {
+      if(!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json();
+    })
+    .then(data => {
+      globeWorldGrob = data;
+      merkeHuelle(data.features, true);
+      globeGrobPromise = null;
+    })
+    .catch(err => {
+      globeGrobPromise = null;
+      console.warn("[COSMOS] Grobe Weltkarte nicht erreichbar:", err?.message || err);
+    });
+}
+
 export async function loadGlobeWorld(){
   if(globeWorldData) return globeWorldData;
+  ladeGrobeWeltkarte();
   if(!globeWorldPromise){
     const url = WELTKARTE_URL;
     globeWorldPromise = fetch(url, {cache:"force-cache"})
@@ -522,7 +549,11 @@ export function drawGlobeFrame(instance, world){
   // beim Hineinzoomen fallen aber die meisten weg - und mit ihnen gut zwei
   // Drittel der Punkte, die d3 sonst jedes Bild durch die Projektion schickt.
   const schnitt = sichtbarerSchnitt(instance);
-  for(const feature of world?.features || []){
+  // Vollansicht: grobe Karte, das Drehen bleibt schnell. Ab Zoom 1.6 die feine
+  // 50m-Karte - dort filtert der Sichtkreis die Laender ohnehin auf die wenigen
+  // im Bild, die feinen Kuestenlinien kosten dann fast nichts.
+  const karte = (instance.zoom < WELT_DETAIL_ZOOM && globeWorldGrob) ? globeWorldGrob : world;
+  for(const feature of karte?.features || []){
     if(!imSichtkreis(feature, schnitt)) continue;
     instance.path(feature);
   }
