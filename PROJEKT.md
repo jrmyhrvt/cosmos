@@ -35,8 +35,10 @@ und ISS-Live-Globus. Kein Build, kein npm. Auslieferung über GitHub Pages.
 - ISS-Globus: **Sternenhimmel** hinter der Erde, drag-gekoppelt und schnell mitdrehend.
 - ISS-Globus: **Milchstraße** als dichteres Sternband entlang eines geneigten
   Abschnitts der galaktischen Ebene.
-- ISS-Detailseite: **echtes NASA-3D-Modell** der Station (glTF, `model-viewer`),
-  über der Karte; das leichte Code-Modell bleibt im Globus.
+- ISS-Globus: **echtes NASA-3D-Modell** (glTF, `model-viewer`) **ersetzt das
+  gezeichnete Modell** — es liegt als Overlay über dem Kugel-Canvas, wandert mit
+  der Station um die Erde und skaliert mit dem Kugelradius. Das gezeichnete
+  Modell bleibt nur als Notnagel, bis die Datei geladen ist.
 - Ganztägige Termine: Ersatzfenster **24 Stunden** statt 24 Minuten — im
   Kalender-Export (DTEND ist exklusiv) waren solche Termine dadurch unsichtbar.
 - ISS-Fixes, Kalender-Export (floating), Sternstrahlen-Symmetrie.
@@ -59,13 +61,14 @@ und ISS-Live-Globus. Kein Build, kein npm. Auslieferung über GitHub Pages.
 | 2026-10-03 | Himmel dreht **nur beim Ziehen** (kein Auto-Rotate), Faktor `STERN_DREH = 3.5`. | „Extrem schnell" gewünscht; kein Springen beim automatischen Zentrieren auf ein Land. |
 | 2026-10-03 | Himmelskörper als **Punkte auf einer Himmelskugel** (manuelle Orthographisch-Projektion, nur vordere Halbkugel). | Sterne müssen von der Erdscheibe verdeckt werden und beim Drehen korrekt wandern. |
 | 2026-10-03 | NASA-3D-Modell nur in der **ISS-Detailansicht** (`model-viewer`), nicht im Globus; Skript und 44-MB-Modell werden erst dort geladen. | Der Globus bleibt leicht und dependency-frei; das schwere Modell landet nur auf einer Seite. NASA erlaubt per CORS nur die eigene Domain, daher liegt die `.glb` im Repo. |
+| 2026-10-03 | Das NASA-Modell wird **Overlay über dem Kugel-Canvas** und ersetzt dort das gezeichnete Modell (Position wie `issPoint`, Größe = `radius · ISS_MODELL_MASSSTAB · Umfang · Hüllkugel-Faktor`). Nachladen erst ab Zoom 2.2. | Der Nutzer wollte das echte Modell *in der Weltkugel*, nicht als eigene Karte darüber. Ohne Positions-Rechnung hinge es als Bildschirm-Tafel in der Luft; die Größe folgt so dem gezeichneten Modell und damit dem Zoom. Der Hüllkugel-Faktor kommt aus `getBounds()`, weil `model-viewer` die Kamera auf die Hüllkugel, nicht auf die längste Kante legt. |
 
 ---
 
 ## Todos
 
 - [ ] ISS-Himmel visuell abnehmen: Dichte, Breite und Verlauf des Milchstraßen-Bandes.
-- [ ] ISS-3D-Modell auf dem iPad visuell abnehmen (Ausrichtung, Helligkeit).
+- [ ] Echtes NASA-Modell **im Globus** visuell abnehmen: Größe, Helligkeit, Ausrichtung.
 - [ ] TLE-Frischepolitik festlegen und umsetzen.
 
 ---
@@ -76,6 +79,7 @@ Neueste Einträge oben. Format: `Datum | Commit | Änderung`.
 
 | Datum      | Commit    | Änderung |
 |------------|-----------|----------|
+| 2026-10-03 | `0468bf1` | NASA-3D-Modell ersetzt das gezeichnete Modell im Globus (Overlay, laden ab Zoom 2.2). |
 | 2026-10-03 | `7a73e3f` | Ganztägige Termine: Ersatzfenster 24 Stunden statt 24 Minuten. |
 | 2026-10-03 | `0b399d7` | ISS-Detailseite: echtes NASA-3D-Modell der Station (glTF, model-viewer). |
 | 2026-10-03 | `39ac700` | ISS-Globus: Milchstraße als dichteres Sternband statt Ring. |
