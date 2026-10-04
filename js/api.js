@@ -498,9 +498,17 @@ export function normalizeRecord(record, source, taken) {
   // dadurch sprang ein Ereignis scheinbar direkt in den Verlauf. Bei einem
   // Raketenstart ist zudem ein langer Countdown ueblich, nicht eine Minute.
   const parsedEnd = parseCosmosDate(record.endRaw);
+  // Ganztaegige Termine bekommen 24 STUNDEN als Ersatzfenster, zeitgebundene
+  // das Standardfenster in Minuten. Vorher stand hier fuer Ganztag 24, aber
+  // multipliziert mit 60000 - also 24 Minuten. Im Kalender ist DTEND bei
+  // ganztaegigen Terminen exklusiv, ein Ende am selben Tag liess den Termin
+  // dort verschwinden.
+  const fensterMs = record.allDay
+    ? 24 * 3600000
+    : (STANDARD_FENSTER_MINUTEN[category] || 1) * 60000;
   const endMs = parsedEnd && parsedEnd.getTime() > startMs
     ? parsedEnd.getTime()
-    : startMs + (record.allDay ? 24 : STANDARD_FENSTER_MINUTEN[category] || 1) * 60000;
+    : startMs + fensterMs;
 
   const rawItem = {
     title,
