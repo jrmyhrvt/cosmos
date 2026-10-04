@@ -196,6 +196,113 @@ export function globePointOnNearSide(instance, lon, lat){
   return globePointVisibility(instance, lon, lat) > 0;
 }
 
+/* --- Echtes NASA-Modell statt gezeichnetem ---------------------------------
+   Das gezeichnete 3D-Modell ist der Notnagel fuer Geraete ohne WebGL. Sobald
+   der Viewer laedt, uebernimmt die echte NASA-Datei: sie liegt als eigene Ebene
+   ueber dem Canvas und wird so positioniert, dass sie auf derselben Stelle steht
+   wie das gezeichnete Modell. Nachgeladen wird erst beim Zoom - die Datei ist
+   44 MB gross und wird auf der ISS-Seite nicht jeder brauchen.
+   -------------------------------------------------------------------------- */
+const MODEL_VIEWER_VERSION = "4.3.1";
+const MODELL_LADEN_AB_ZOOM = 2.2;   // ab hier wird das Modell sichtbar
+const MODELL_KANTE = 300;            // Kantenlaenge des Viewer-Elements in CSS-Pixeln
+// model-viewer legt das Modell so in die Kamera, dass seine Huellkugel genau in
+// das Bild passt. Die Station ist ein aus Platten gebautes Gitter, ihre
+// Huellkugel ist also groesser als ihre laengste Ausdehnung und nur ein Teil des
+// Bildes fuellt sie wirklich. Wie viel genau, misst der Viewer selbst aus
+// (getBounds); ohne diese Zahl erschiene sie auf dem Globus zu klein.
+const MODELL_HUELLKUGEL = 1.4;      // nur der Notfall, falls getBounds fehlt
+
+let modelViewerLaden = null;
+function ladeModelViewer(){
+  if(modelViewerLaden) return modelViewerLaden;
+  modelViewerLaden = new Promise((fertig, fehler) => {
+    const s = document.createElement("script");
+    s.type = "module";
+    s.src = `https://cdn.jsdelivr.net/npm/@google/model-viewer@${MODEL_VIEWER_VERSION}/dist/model-viewer.min.js`;
+    s.onload = fertig;
+    s.onerror = () => { modelViewerLaden = null; fehler(new Error("model-viewer")); };
+    document.head.appendChild(s);
+  });
+  return modelViewerLaden;
+}
+
+// Laengste Kante des gezeichneten Modells, in seinen eigenen Einheiten. Einmal
+// berechnet, dann nur noch gelesen.
+let modellUmfang = null;
+function issModellUmfang(){
+  if(modellUmfang !== null) return modellUmfang;
+  let max = 0;
+  for(const teil of ISS_TEILE){
+    for(const p of teil.punkte) max = Math.max(max, Math.abs(p[0]), Math.abs(p[1]), Math.abs(p[2]));
+  }
+  modellUmfang = max * 2 || 1;
+  return modellUmfang;
+}
+
+// Viewer nachladen und das Overlay anlegen. Mehrfach aufrufbar, ohne zu duplizieren.
+function modellVorbereiten(instance){
+  if(instance.modellGeladen || instance.modellLaeuft) return;
+  instance.modellLaeuft = true;
+  ladeModelViewer()
+    .then(() => {
+      if(instance.modellGeladen || instance.modellEl) return;
+      const el = document.createElement("model-viewer");
+      el.className = "iss-globe-model";
+      el.setAttribute("src", "assets/iss/ISS_stationary.glb");
+      el.setAttribute("alt", (TRANSLATIONS[currentLang] || {}).iss_model_alt || "");
+      el.setAttribute("exposure", "1.1");
+      // Kein Schlagschatten: die Station schwebt im All, es gibt keineFlaeche,
+      // auf der der Schatten landen koennte.
+      el.setAttribute("shadow-intensity", "0");
+      el.setAttribute("auto-rotate", "");
+      el.setAttribute("rotation-per-second", "10deg");
+      el.setAttribute("interaction-prompt", "none");
+      el.setAttribute("loading", "eager");
+      el.style.visibility = "hidden";
+      el.addEventListener("load", () => {
+        const b = typeof el.getBounds === "function" ? el.getBounds() : null;
+        const dx = b ? b.max.x - b.min.x : 0;
+        const dy = b ? b.max.y - b.min.y : 0;
+        const dz = b ? b.max.z - b.min.z : 0;
+        const laenge = Math.max(dx, dy, dz);
+        const diagonale = Math.hypot(dx, dy, dz);
+        instance.modellFaktor = laenge > 0 && diagonale > 0
+          ? diagonale / laenge
+          : MODELL_HUELLKUGEL;
+        instance.modellGeladen = true;
+        el.style.visibility = "hidden";
+      });
+      // Direkt hinter das Canvas haengen: dann liegt das Modell ueber der Kugel,
+      // aber unter Statuszeile, Zoom-Knoepfen und Hinweis.
+      const eltern = instance.canvas.parentElement;
+      if(!eltern) return;
+      eltern.insertBefore(el, instance.canvas.nextSibling);
+      instance.modellEl = el;
+    })
+    .catch(() => { instance.modellLaeuft = false; });
+}
+
+// Das echte Modell auf die Stelle der Station setzen. Gibt false zurueck, wenn es
+// noch nicht bereit ist - dann zeichnet der Aufrufer weiter sein Modell.
+function setzeModell(instance, punkt, anteil){
+  const el = instance.modellEl;
+  if(!el || !instance.modellGeladen) return false;
+  const size = instance.radius * ISS_MODELL_MASSSTAB * issModellUmfang() * (instance.modellFaktor || MODELL_HUELLKUGEL);
+  el.style.visibility = "visible";
+  el.style.opacity = anteil.toFixed(3);
+  // Das Element ist unveraendert 300 px gross und wird nur skaliert: eine
+  // Aenderung der Kantenlaenge wuerde model-viewer zu einem Neuaufbau der
+  // Szene zwingen.
+  const s = Math.max(0.02, size / MODELL_KANTE);
+  el.style.transform = `translate(${(punkt[0] - MODELL_KANTE / 2).toFixed(1)}px,${(punkt[1] - MODELL_KANTE / 2).toFixed(1)}px) scale(${s.toFixed(4)})`;
+  return true;
+}
+
+function versteckeModell(instance){
+  if(instance.modellEl) instance.modellEl.style.visibility = "hidden";
+}
+
 /* --- Sterne hinter dem Globus ---------------------------------------------
    Die ISS-Ansicht bekommt einen leichten Sternenhimmel. Er liegt HINTER der
    Erde: gezeichnet wird er vor der Erdscheibe, die ihn sauber abdeckt - die
@@ -390,6 +497,9 @@ export function drawGlobeFrame(instance, world){
   // wuerde sie am Rand von der Kugel abgeschnitten. GloStar zeigt den Globus
   // ohne ISS: dort gehoert sie thematisch nicht hin.
   if(instance.showIss && Number.isFinite(currentIssLat) && Number.isFinite(currentIssLon)){
+    // Erst laden, wenn die Station auch wirklich gebraucht wird. Vor dem Zoom
+    // ist weder das gezeichnete noch das echte Modell zu sehen.
+    if(instance.zoom >= MODELL_LADEN_AB_ZOOM) modellVorbereiten(instance);
     // Sehr dichte Abtastung: an den Polen wechselt die Laenge schnell, und
     // mit zu wenigen Punkten bricht die Bahn dort in sichtbare Zacken aus.
     const SAMPLES = 900;
@@ -484,8 +594,14 @@ export function drawGlobeFrame(instance, world){
         issPoint[1] < -instance.px(120) || issPoint[1] > instance.height + instance.px(120);
       if(anteil > 0 && !ausserhalb &&
          globePointVisibility(instance, currentIssLon, currentIssLat) > 0){
-        drawIssModel(ctx, instance, projection, center,
-          {hoch, flug, quer, senkrecht}, Date.now() / 4200, anteil);
+        // Das echte Modell hat Vorrang; solange es noch nicht da ist, zeichnet
+        // der Code die Station als Notnagel.
+        if(!setzeModell(instance, issPoint, anteil)){
+          drawIssModel(ctx, instance, projection, center,
+            {hoch, flug, quer, senkrecht}, Date.now() / 4200, anteil);
+        }
+      } else {
+        versteckeModell(instance);
       }
     }
   }
@@ -947,6 +1063,12 @@ export function mountGlobe(canvasId, statusId, options = {}){
     himmel: null,
     himmelW: 0,
     himmelH: 0,
+    // Echtes NASA-Modell: Overlay-Element, Ladezustand und der aus der
+    // Huellkugel gemessene Groessenfaktor (siehe setzeModell).
+    modellEl: null,
+    modellGeladen: false,
+    modellLaeuft: false,
+    modellFaktor: 0,
     userMoved: false,
     dragging: false,
     lastX: 0,
@@ -1117,6 +1239,10 @@ export function pruneGlobes(){
   for(const [canvasId, instance] of globes){
     if(!instance.canvas.isConnected || instance.canvas.offsetParent === null){
       if(instance.observer){ instance.observer.disconnect(); instance.observer = null; }
+      // Das Overlay haengt am Container, nicht am Canvas: waere es nicht
+      // ausdruecklich entfernt, bliebe es beim naechsten Oeffnen als zweites
+      // Modell im Bild stehen.
+      if(instance.modellEl){ instance.modellEl.remove(); instance.modellEl = null; }
       globes.delete(canvasId);
     }
   }
