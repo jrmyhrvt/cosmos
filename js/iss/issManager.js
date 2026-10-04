@@ -1,5 +1,6 @@
 import { currentLang } from "../main.js";
 import { TRANSLATIONS } from "../translations.js";
+import { WELTKARTE_URL } from "./issConstants.js";
 export let currentIssLat = null;
 export let currentIssLon = null;
 export let currentIssAlt = null;
@@ -74,6 +75,68 @@ export let globeWorldPromise = null;
 export let globeAnimationId = null;
 export const globes = new Map();
 
+// Weltumschliessender Punkt je Land und sein Radius, einmal beim Laden
+// berechnet. Beim Zeichnen werden nur die Laender genommen, die den Ausschnitt
+// wirklich erreichen - die Projektion rechnet sonst weiter Punkte fuer
+// Laender, die ohnehin hinter dem Horizont oder ausserhalb des Bildes liegen.
+const globeHuelle = new Map();
+
+function merkeHuelle(features){
+  globeHuelle.clear();
+  for(const f of features || []){
+    const g = f.geometry;
+    if(!g) continue;
+    const polys = g.type === "Polygon" ? [g.coordinates] : g.coordinates;
+    let lonMin = 180, lonMax = -180, latMin = 90, latMax = -90, gefunden = false;
+    for(const poly of polys){
+      for(const ring of poly){
+        for(const p of ring){
+          if(p[0] < lonMin) lonMin = p[0];
+          if(p[0] > lonMax) lonMax = p[0];
+          if(p[1] < latMin) latMin = p[1];
+          if(p[1] > latMax) latMax = p[1];
+          gefunden = true;
+        }
+      }
+    }
+    if(!gefunden) continue;
+    // Mitte und Radius des kleinsten Bogens, der das Land umschliesst. Der
+    // Radius wird mit den vier Rechteckecken bestimmt und ist damit immer etwas
+    // zu gross - das ist gewollt, sonst flackern Laender am Rand des Bildes.
+    const mitte = [(lonMin + lonMax) / 2, (latMin + latMax) / 2];
+    let radius = 0;
+    for(const ecke of [[lonMin, latMin], [lonMax, latMin], [lonMin, latMax], [lonMax, latMax]]){
+      const d = d3.geoDistance(mitte, ecke) * 180 / Math.PI;
+      if(d > radius) radius = d;
+    }
+    globeHuelle.set(f, {mitte, radius: radius + 0.5});
+  }
+}
+
+// Wie weit der Ausschnitt auf der Kugel reicht. Bei einer Orthogonalprojektion
+// ist das der Winkel zur Leinwandecke: der Canvas ist beim Hineinzoomen viel
+// kleiner als die gezeichnete Kugel, deshalb taugt hier nicht der Radius der
+// Kugel selbst. Deckt der Ausschnitt die ganze Erde ab, kommt null zurueck und
+// es wird ohne Filter gezeichnet.
+function sichtbarerSchnitt(instance){
+  const ecke = Math.hypot(instance.width / 2, instance.height / 2) / instance.projection.scale();
+  if(ecke >= 1) return null;
+  // d3 speichert die Drehung als Gegenwert: was rotate([-lon, -lat]) gesetzt
+  // bekommt, zeigt auf (lon, lat). Die Mitte deshalb aus der Projektion holen
+  // und nicht aus viewLon/viewLat - die drehen sich nicht immer gleich.
+  const rot = instance.projection.rotate() || [0, 0, 0];
+  return {mitte: [-rot[0], -rot[1]], radius: Math.asin(ecke) * 180 / Math.PI};
+}
+
+function imSichtkreis(feature, schnitt){
+  if(!schnitt) return true;
+  const huelle = globeHuelle.get(feature);
+  if(!huelle) return true;
+  // d3.geoDistance rechnet in Radiant, der Rest der Datei in Grad.
+  const abstand = d3.geoDistance(schnitt.mitte, huelle.mitte) * 180 / Math.PI;
+  return abstand <= schnitt.radius + huelle.radius;
+}
+
 // Reale Bahndaten der ISS: Inklination und mittlere Hoehe werden fuer die
 // Bodenspur verwendet, der Ankerpunkt ist die aktuelle echte Position.
 export const ISS_ORBIT = {inclination: 51.64, altitudeKm: 420, mu: 398600.4418, earthRadiusKm: 6371};
@@ -108,7 +171,7 @@ export function setGlobeLand(land){
 export async function loadGlobeWorld(){
   if(globeWorldData) return globeWorldData;
   if(!globeWorldPromise){
-    const url = "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson";
+    const url = WELTKARTE_URL;
     globeWorldPromise = fetch(url, {cache:"force-cache"})
       .then(response => {
         if(!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -116,6 +179,7 @@ export async function loadGlobeWorld(){
       })
       .then(data => {
         globeWorldData = data;
+        merkeHuelle(data.features);
         globeWorldPromise = null;
         return data;
       })
@@ -454,7 +518,14 @@ export function drawGlobeFrame(instance, world){
   ctx.fillStyle = "#fff";
   ctx.strokeStyle = "rgba(0,0,0,.35)";
   ctx.lineWidth = instance.px(.35);
-  instance.path(world);
+  // Nur die sichtbaren Laender in den Pfad. Bei Zoom 1 sind das alle 242,
+  // beim Hineinzoomen fallen aber die meisten weg - und mit ihnen gut zwei
+  // Drittel der Punkte, die d3 sonst jedes Bild durch die Projektion schickt.
+  const schnitt = sichtbarerSchnitt(instance);
+  for(const feature of world?.features || []){
+    if(!imSichtkreis(feature, schnitt)) continue;
+    instance.path(feature);
+  }
   ctx.fill();
   ctx.stroke();
 

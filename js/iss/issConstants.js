@@ -19,6 +19,22 @@ export const ISS_ORBIT = {
 export function formatIssLat(v){
   return Number.isFinite(v) ? `${v.toFixed(2)}°` : "--";
 }
+
 export function formatIssLon(v){
   return Number.isFinite(v) ? `${v.toFixed(2)}°` : "--";
 }
+
+// Weltkarte fuer Globus und Laendersuche - bewusst eine einzige Datei fuer
+// beides. Quelle ist Natural Earth 50m (Natural-Earth-Vektor von nvkelso),
+// gerundet auf drei Nachkommastellen und pro Ring vereinfacht: grosse
+// Kuestenlinien bis auf 0,08 Grad (rund 9 km), kleine Inseln unveraendert,
+// sonst verschwaenden Monaco, Tuvalu oder die Malediven ganz. Das Original
+// wiegt 3 MB mit rund 140 Feldern je Land; diese Datei 0,47 MB und damit auch
+// gzip-komprimiert noch rund 160 KB. Bei 0,02 Grad waere die Karte noch
+// schaerfer, kostet aber auf dem Globus rund ein Drittel Bildrate - die
+// grossen Kuestenlinien sind hier der beste Kompromiss.
+//
+// Der Globus nutzte vorher 110m: das ist zwar kleiner, laesst Daenemark, Italien,
+// Portugal oder Grossbritannien aber nur als Klumpen erkennen - genau die
+// Kuesten, an denen man die ISS-Ueberfluge ablesen will.
+export const WELTKARTE_URL = "assets/world/laender-50m.json";

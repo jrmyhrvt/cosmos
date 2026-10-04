@@ -11,6 +11,7 @@ import {
   findeNaechstenUeberflug, holeTLE, positionNach, positionJetzt,
   minutenSeitEpoche, tleAlterStunden, letzterTleFehler, tleKommtAusNotfall
 } from "./sgp4.js";
+import { WELTKARTE_URL } from "./issConstants.js";
 
 const SEKUNDEN_PRO_TAG = 86400;
 const KM_PRO_GRAD = 111.32;
@@ -193,10 +194,10 @@ export async function loadCountries(){
   if(laenderCache) return laenderCache;
   if(laenderPromise) return laenderPromise;
 
-  // 50m statt 110m: bei 110m fehlen Liechtenstein, Monaco, San Marino und
-  // weitere Kleinstaaten ganz - fuer "passiert ja seltener" waere genau das
-  // die interessantesten Laender.
-  const url = "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_0_countries.geojson";
+  // Dieselbe Datei, die auch der Globus nimmt: 50m statt 110m, weil bei 110m
+  // Liechtenstein, Monaco, San Marino und weitere Kleinstaaten ganz fehlen -
+  // fuer "passiert ja seltener" waere genau das die interessantesten Laender.
+  const url = WELTKARTE_URL;
   laenderPromise = fetch(url, {cache: "force-cache"})
     .then(r => {
       if(!r.ok) throw new Error(`HTTP ${r.status}`);
