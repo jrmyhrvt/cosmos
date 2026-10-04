@@ -29,10 +29,15 @@ export function formatIssLon(v){
 // gerundet auf drei Nachkommastellen und pro Ring vereinfacht: grosse
 // Kuestenlinien bis auf 0,08 Grad (rund 9 km), kleine Inseln unveraendert,
 // sonst verschwaenden Monaco, Tuvalu oder die Malediven ganz. Das Original
-// wiegt 3 MB mit rund 140 Feldern je Land; diese Datei 0,47 MB und damit auch
-// gzip-komprimiert noch rund 160 KB. Bei 0,02 Grad waere die Karte noch
+// wiegt 3 MB mit rund 140 Feldern je Land; diese Datei 0,52 MB und damit auch
+// gzip-komprimiert noch rund 185 KB. Bei 0,02 Grad waere die Karte noch
 // schaerfer, kostet aber auf dem Globus rund ein Drittel Bildrate - die
 // grossen Kuestenlinien sind hier der beste Kompromiss.
+//
+// Wichtig ist die Ringlaufrichtung: d3 fuellt mit der Nonzero-Regel, ein
+// verdrehtes (eingeschlossenes) Ring zeigt deshalb die ganze Kugel. Der
+// Generator tools/weltkarte.py haelt die Laufrichtung der Natural-Earth-
+// Ringe fest und ersetzt Ringe, die sich beim Vereinfachen selbst schneiden.
 //
 // Der Globus nutzte vorher 110m: das ist zwar kleiner, laesst Daenemark, Italien,
 // Portugal oder Grossbritannien aber nur als Klumpen erkennen - genau die
