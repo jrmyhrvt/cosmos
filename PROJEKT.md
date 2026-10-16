@@ -87,6 +87,7 @@ Neueste Einträge oben. Format: `Datum | Commit | Änderung`.
 
 | Datum      | Commit    | Änderung |
 |------------|-----------|----------|
+| 2026-10-05 | `40490b1` | ISS-Globus: dritte Detailstufe ab Zoom 8 aus Natural Earth 10m (0,02 Grad), sichtbares Fenster mit Clipping (Sutherland-Hodgman), Polschutz und feinere Länderumrandung aus 10m. |
 | 2026-10-04 | `aa4bcdd` | ISS-Globus: grobe Detailstufe fuer die Vollansicht, feine 50m-Karte ab Zoom 1.6 - Ziehen wieder mit 60 fps. |
 | 2026-10-04 | `d5311b7` | ISS-Globus: weisse Erde behoben (Ringlaufrichtung beim Vereinfachen). |
 | 2026-10-04 | `d542c66` | ISS-Globus: Natural Earth 50m statt 110m, lokal als eine Datei fuer Globus und Laendersuche; Sichtkreis-Filter beim Zeichnen. |
