@@ -334,6 +334,30 @@ window.addEventListener('touchmove', (e) => {
     pointerY = e.touches[0].clientY;
   }
 }, { passive: true });
+// Horizontales Zurueck-Swipen auf dem Handy und iPad
+window.addEventListener('touchstart', (e) => {
+  if(e.touches && e.touches.length === 1){
+    window.__swipeStart = { x: e.touches[0].clientX, y: e.touches[0].clientY, time: Date.now() };
+  } else {
+    delete window.__swipeStart;
+  }
+}, { passive: true });
+
+window.addEventListener('touchend', (e) => {
+  if(window.__swipeStart && e.changedTouches && e.changedTouches.length === 1){
+    const dx = e.changedTouches[0].clientX - window.__swipeStart.x;
+    const dy = Math.abs(e.changedTouches[0].clientY - window.__swipeStart.y);
+    const dt = Date.now() - window.__swipeStart.time;
+    // Nach links swipen: dx < -80px, mehr horizontal als vertikal, schnell genug
+    if(dx < -80 && dy < Math.abs(dx) * 0.5 && dt < 800){
+      delete window.__swipeStart;
+      if(window.history && window.history.length > 1) window.history.back();
+      return;
+    }
+  }
+  delete window.__swipeStart;
+}, { passive: true });
+
 
 export function drawStarsFixed(zeit){
   const b = sternB, h = sternH;

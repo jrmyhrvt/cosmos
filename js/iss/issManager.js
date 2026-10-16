@@ -1140,7 +1140,7 @@ export function mountGlobe(canvasId, statusId, options = {}){
   const onWheel = e => {
     e.preventDefault();
     const faktor = e.deltaY < 0 ? 1.16 : 1 / 1.16;
-    instance.zoom = Math.max(1, Math.min(14, instance.zoom * faktor));
+    instance.zoom = Math.max(1, Math.min(20, instance.zoom * faktor));
   };
 
   // Zwei-Finger-Zoom auf dem Touchscreen. Solange zwei Finger auf dem Glas
@@ -1155,7 +1155,7 @@ export function mountGlobe(canvasId, statusId, options = {}){
     if(e.touches.length !== 2) return;
     const jetzt = pinchAbstand(e.touches);
     if(instance.pinch > 0 && jetzt > 0){
-      instance.zoom = Math.max(1, Math.min(14, instance.zoom * (jetzt / instance.pinch)));
+      instance.zoom = Math.max(1, Math.min(20, instance.zoom * (jetzt / instance.pinch)));
     }
     instance.pinch = jetzt;
     if(e.cancelable) e.preventDefault();
@@ -1204,7 +1204,7 @@ export function mountGlobe(canvasId, statusId, options = {}){
 export function globeZoomRaus(canvasId, faktor = 1.35){
   const instance = globes.get(canvasId);
   if(!instance) return;
-  instance.zoom = Math.max(1, Math.min(14, instance.zoom * faktor));
+  instance.zoom = Math.max(1, Math.min(20, instance.zoom * faktor));
   // Mit hineinzoomen ist die automatische Zentrierung vorbei, sonst sprengt der
   // naechste Frame den Blick wieder auf das ganze Land zurueck.
   if(faktor > 1) instance.userMoved = true;
