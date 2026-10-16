@@ -56,3 +56,18 @@ export const WELTKARTE_URL = "assets/world/laender-50m.json";
 // weil nur wenige Laender im Bild liegen. Beim Drehen bleiben so 60 fps.
 export const WELTKARTE_GROB_URL = "assets/world/laender-grob.json";
 export const WELT_DETAIL_ZOOM = 1.6;
+
+// Feinste Stufe fuer tiefes Hineinzoomen, aus Natural Earth 10m mit 0,02 Grad
+// (3,0 MB, 183.574 Punkte, gzip rund 0,95 MB, 258 Laender mit deutschen
+// Namen). Sie wird erst ab Zoom 8 geholt und erst dann gezeichnet: unterhalb
+// davon ist die mittlere Stufe mit 0,08 Grad schneller und optisch praktisch
+// gleich gut, denn 0,08 Grad sind bei Zoom 8 nur noch gut ein Pixel. Ab Zoom 8
+// waeren es dagegen drei bis vier Pixel und damit sichtbar zu dick.
+// Wichtig ist das Zuschneiden auf den sichtbaren Ausschnitt (clipRing in
+// issManager.js): ueber Mitteleuropa gemessen kostet die feine Stufe ohne
+// Zuschneiden mehrere hundert Millisekunden je Bild (rund 410 ms), mit
+// Zuschneiden rund 14 ms bei Zoom 8 und 6 ms bei Zoom 14. Beim ersten Wechsel
+// auf die feine Stufe stockt das Bild einmalig rund 130 ms (3 MB lesen und
+// Hüllen berechnen), danach dreht es mit 56 bis 60 fps.
+export const WELTKARTE_FEIN_URL = "assets/world/laender-fein.json";
+export const WELT_FEIN_ZOOM = 8;

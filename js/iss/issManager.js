@@ -1,6 +1,6 @@
 import { currentLang } from "../main.js";
 import { TRANSLATIONS } from "../translations.js";
-import { WELTKARTE_URL, WELTKARTE_GROB_URL, WELT_DETAIL_ZOOM } from "./issConstants.js";
+import { WELTKARTE_URL, WELTKARTE_GROB_URL, WELTKARTE_FEIN_URL, WELT_DETAIL_ZOOM, WELT_FEIN_ZOOM } from "./issConstants.js";
 export let currentIssLat = null;
 export let currentIssLon = null;
 export let currentIssAlt = null;
@@ -75,6 +75,15 @@ export let globeWorldPromise = null;
 // Grobe Detailstufe fuer die Vollansicht, siehe WELT_DETAIL_ZOOM.
 let globeWorldGrob = null;
 let globeGrobPromise = null;
+
+// Feinste Detailstufe fuer tiefes Hineinzoomen, siehe WELT_FEIN_ZOOM.
+let globeWorldFein = null;
+let globeFeinPromise = null;
+// Landauswahl nach ISO-Code, damit das rot umrandete Land dieselben Kuesten
+// bekommt wie die Karte, auf der es gerade liegt. Die Suche liefert die
+// 50m-Geometrie - bei tiefem Zoom waere die Umrandung sonst sichtbar grober
+// als die Kueste daneben.
+const globeFeinNachIso = new Map();
 export let globeAnimationId = null;
 export const globes = new Map();
 
@@ -143,6 +152,132 @@ function imSichtkreis(feature, schnitt){
   return abstand <= schnitt.radius + huelle.radius;
 }
 
+// Alle Ringe eines Landes, egal ob Polygon oder MultiPolygon.
+function alleRinge(feature){
+  const out = [];
+  const geom = feature.geometry;
+  if(!geom) return out;
+  const polys = geom.type === "Polygon" ? [geom.coordinates] : geom.coordinates;
+  for(const poly of polys || []) for(const ring of poly) out.push(ring);
+  return out;
+}
+
+// Der Ausschnitt, den der Nutzer wirklich sieht, als Rechteck in Grad. Dazu
+// wird der Rand der sichtbaren Flaeche rueckwaerts in die Projektion geworfen
+// und daraus das groesste Rechteck gesucht. Sichtbar ist die Schnittmenge aus
+// der Kugelscheibe und dem Bildausschnitt - beides wird abgeklappert:
+// die vier Bildkanten (nur der Teil innerhalb der Scheibe) und der
+// Kugelrand (nur der Teil im Bild). Bei tiefem Zoom liegt das Bild ganz in der
+// Scheibe, in der Vollansicht der Rahmen ganz ausserhalb; beides liefert ein
+// brauchbares Fenster.
+// Wichtig: d3.geoProjection.invert gibt fuer Punkte hinter der Kugel KEIN null
+// zurueck, sondern die Breite der Kugelmitte und die Gegenlaenge dazu (bei
+// Mitte 20/45 gemessen: fuer jeden Punkt ausserhalb kommt -160/45 zurueck).
+// Deshalb wird vorher selbst geprueft, ob der Punkt ueberhaupt auf der Scheibe
+// liegt - sonst wanderten diese Werte ins Fenster und es verschwand Land.
+function sichtbaresFenster(instance, schnitt){
+  const proj = instance.projection;
+  // Liegt ein Pol in der Sicht, hilft kein Rechteck in Grad: sichtbare Laenge
+  // laeuft dort ueber 180 Grad hinaus, ein Rechteck aus Laenge und Breite
+  // schneidet dann Laender mit hoher Breite ab (Island, Norwegen, England).
+  // In dem Fall wird nicht geschnitten - das ist nur die Vollansicht, kostet
+  // aber nichts, weil dort ohnehin die grobe Stufe mit wenigen Punkten laeuft.
+  const rot0 = proj.rotate() || [0, 0, 0];
+  const mitteLat = -rot0[1];
+  const radius = schnitt ? schnitt.radius : 90;
+  if(Math.abs(mitteLat) + radius > 88) return null;
+  // 12 CSS-Px Rand, 40-Px-Abtastung und zusaetzlich 3 Prozent plus 0,05 Grad
+  // pro Richtung: die Bruecken, die das Zuschneiden erzeugt, liegen damit
+  // sicher ausserhalb des Bildes. Nur mit Pixelrand blieben bei Zoom 12 noch
+  // 15 Pixel am Bildrand, weil eine Linie konstanter Laenge zu den Polen hin
+  // zur Kugelmitte wandert. Verglichen wurde pixelweise mit und ohne
+  // Zuschneiden: in der Bildmitte und am Rand 0 Unterschiede.
+  const rand = instance.px(12);
+  const schritt = instance.px(40);
+  const cx = instance.center[0], cy = instance.center[1];
+  const scheibe = proj.scale();
+  let lonMin = 180, lonMax = -180, latMin = 90, latMax = -90, gesehen = false;
+
+  // false heisst: der Punkt liegt auf der Scheibe, liess sich aber nicht
+  // zurueckrechnen. Dann lieber gar kein Zuschneiden.
+  const auf = (x, y) => {
+    if(Math.hypot(x - cx, y - cy) > scheibe) return true;
+    const q = proj.invert([x, y]);
+    if(!q || !isFinite(q[0]) || !isFinite(q[1])) return false;
+    gesehen = true;
+    if(q[0] < lonMin) lonMin = q[0];
+    if(q[0] > lonMax) lonMax = q[0];
+    if(q[1] < latMin) latMin = q[1];
+    if(q[1] > latMax) latMax = q[1];
+    return true;
+  };
+
+  for(let x = -rand; x <= instance.width + rand; x += schritt){
+    if(!auf(x, -rand) || !auf(x, instance.height + rand)) return null;
+  }
+  for(let y = -rand; y <= instance.height + rand; y += schritt){
+    if(!auf(-rand, y) || !auf(instance.width + rand, y)) return null;
+  }
+  // Der Kugelrand wird bewusst ein winziges Stueck innen abgetastet: genau
+  // auf dem Horizont rechnet d3.invert unzuverlaessig (am Nordpol der
+  // Vollansicht kam Laenge -160 und Breite 45 zurueck statt 20 und 90), und
+  // das Fenster verliesse dann Laender mit hoher Breite.
+  const kugelRand = scheibe * 0.998;
+  for(let grad = 0; grad <= 360; grad += 5){
+    const w = grad * Math.PI / 180;
+    const x = cx + Math.cos(w) * kugelRand;
+    const y = cy + Math.sin(w) * kugelRand;
+    if(x < -rand || y < -rand || x > instance.width + rand || y > instance.height + rand) continue;
+    if(!auf(x, y)) return null;
+  }
+  if(!gesehen || !(lonMax > lonMin) || !(latMax > latMin)) return null;
+  const mL = (lonMax - lonMin) * 0.03 + 0.05;
+  const mB = (latMax - latMin) * 0.03 + 0.05;
+  return {lonMin: lonMin - mL, lonMax: lonMax + mL, latMin: latMin - mB, latMax: latMax + mB};
+}
+
+// Schneider-Hodgman: schneidet einen Ring auf das Rechteck zu. Die Ecken,
+// die dabei entstehen, werden mit Schnittgeraden des Fensters verbunden -
+// sie liegen ausserhalb der Leinwand und sind deshalb nicht zu sehen. Bei der
+// feinen Karte kostet das Zuschneiden 18 ms je Bild statt 410 ms, weil fast
+// alle Laender gar nicht erst durch die Projektion geschickt werden.
+// Gibt null zurueck, wenn vom Ring nichts uebrig bleibt.
+function clipRing(ring, f){
+  let pts = ring;
+  if(pts.length < 3) return null;
+  const kanten = [
+    p => p[0] >= f.lonMin, p => p[0] <= f.lonMax,
+    p => p[1] >= f.latMin, p => p[1] <= f.latMax
+  ];
+  const schnitte = [
+    (a, b) => [f.lonMin, a[1] + (b[1] - a[1]) * (f.lonMin - a[0]) / (b[0] - a[0])],
+    (a, b) => [f.lonMax, a[1] + (b[1] - a[1]) * (f.lonMax - a[0]) / (b[0] - a[0])],
+    (a, b) => [a[0] + (b[0] - a[0]) * (f.latMin - a[1]) / (b[1] - a[1]), f.latMin],
+    (a, b) => [a[0] + (b[0] - a[0]) * (f.latMax - a[1]) / (b[1] - a[1]), f.latMax]
+  ];
+  for(let k = 0; k < 4; k++){
+    const innen = kanten[k], schnitt = schnitte[k], neu = [];
+    // Die Ringe in den Kartendateien sind geschlossen (der letzte Punkt ist der
+    // erste). Der wird hier nicht mitgenommen, sonst entstuende ein
+    // Nullstueck und am Ende ein doppelter Punkt.
+    const n = pts.length;
+    const zu = n > 3 && pts[0][0] === pts[n - 1][0] && pts[0][1] === pts[n - 1][1] ? n - 1 : n;
+    for(let i = 0; i < zu; i++){
+      const a = pts[i], b = pts[(i + 1) % zu];
+      const aDrin = innen(a), bDrin = innen(b);
+      if(aDrin) neu.push(a);
+      if(aDrin !== bDrin){
+        const s = schnitt(a, b);
+        if(isFinite(s[0]) && isFinite(s[1])) neu.push(s);
+      }
+    }
+    if(neu.length < 3) return null;
+    pts = neu;
+  }
+  pts.push(pts[0]);
+  return pts;
+}
+
 // Reale Bahndaten der ISS: Inklination und mittlere Hoehe werden fuer die
 // Bodenspur verwendet, der Ankerpunkt ist die aktuelle echte Position.
 export const ISS_ORBIT = {inclination: 51.64, altitudeKm: 420, mu: 398600.4418, earthRadiusKm: 6371};
@@ -192,6 +327,50 @@ function ladeGrobeWeltkarte(){
       globeGrobPromise = null;
       console.warn("[COSMOS] Grobe Weltkarte nicht erreichbar:", err?.message || err);
     });
+}
+
+// Die feinste Stufe ist 3 MB gross und wird deshalb erst geholt, wenn der
+// Globus zum ersten Mal tief hineingezoomt wird. Bis sie da ist, zeichnet der
+// Globus die mittlere Karte - es gibt also kein Aufblitzen und keinen
+// Aussetzer, nur einen kurzen Moment mit der etwas groberen Kueste.
+function ladeFeineWeltkarte(){
+  if(globeWorldFein || globeFeinPromise) return;
+  globeFeinPromise = fetch(WELTKARTE_FEIN_URL, {cache:"force-cache"})
+    .then(response => {
+      if(!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json();
+    })
+    .then(data => {
+      globeWorldFein = data;
+      for(const f of data.features || []){
+        const iso = f.properties?.ISO_A2_EH || f.properties?.ISO_A2;
+        if(iso && iso !== "-99") globeFeinNachIso.set(iso, f);
+      }
+      merkeHuelle(data.features, true);
+      globeFeinPromise = null;
+    })
+    .catch(err => {
+      globeFeinPromise = null;
+      console.warn("[COSMOS] Feine Weltkarte nicht erreichbar:", err?.message || err);
+    });
+}
+
+// Die Ringe fuer die rote Umrandung: aus der feinen Karte, sobald sie da ist,
+// sonst die aus der Ländersuche.
+function globeLandRinge(){
+  const fein = globeLand?.iso2 ? globeFeinNachIso.get(globeLand.iso2) : null;
+  const ringe = fein ? alleRinge(fein) : globeLand?.polys;
+  return ringe?.length ? ringe : null;
+}
+
+// Die Detailstufe, die zum aktuellen Zoom passt.
+function weltkarteFuer(instance, standard){
+  if(instance.zoom >= WELT_FEIN_ZOOM){
+    ladeFeineWeltkarte();
+    if(globeWorldFein) return globeWorldFein;
+  }
+  if(instance.zoom < WELT_DETAIL_ZOOM && globeWorldGrob) return globeWorldGrob;
+  return standard;
 }
 
 export async function loadGlobeWorld(){
@@ -549,13 +728,24 @@ export function drawGlobeFrame(instance, world){
   // beim Hineinzoomen fallen aber die meisten weg - und mit ihnen gut zwei
   // Drittel der Punkte, die d3 sonst jedes Bild durch die Projektion schickt.
   const schnitt = sichtbarerSchnitt(instance);
-  // Vollansicht: grobe Karte, das Drehen bleibt schnell. Ab Zoom 1.6 die feine
-  // 50m-Karte - dort filtert der Sichtkreis die Laender ohnehin auf die wenigen
-  // im Bild, die feinen Kuestenlinien kosten dann fast nichts.
-  const karte = (instance.zoom < WELT_DETAIL_ZOOM && globeWorldGrob) ? globeWorldGrob : world;
+  // Drei Stufen: grobe Karte in der Vollansicht, ab Zoom 1.6 die 50m-Karte,
+  // ab Zoom 8 die feine 10m-Karte. Bei der feinen Stufe kommt der zweite
+  // Schnitt dazu: die Ringspitzen ausserhalb des Bildes werden vorher
+  // abgeschnitten, sonst muesste d3 auch die 180.000 Punkte der halben Erde
+  // durch die Projektion schicken (410 statt 18 ms je Bild ueber Mitteleuropa).
+  const karte = weltkarteFuer(instance, world);
+  const fenster = sichtbaresFenster(instance, schnitt);
   for(const feature of karte?.features || []){
     if(!imSichtkreis(feature, schnitt)) continue;
-    instance.path(feature);
+    if(!fenster){
+      instance.path(feature);
+      continue;
+    }
+    for(const ring of alleRinge(feature)){
+      const kurz = clipRing(ring, fenster);
+      if(!kurz) continue;
+      instance.path({type: "Feature", geometry: {type: "Polygon", coordinates: [kurz]}});
+    }
   }
   ctx.fill();
   ctx.stroke();
@@ -564,8 +754,9 @@ export function drawGlobeFrame(instance, world){
   // Kugel-Clips gezeichnet, dadurch schneidet der Clip die Rueckseite von
   // selbst weg - man sieht also nur die Haelfte des Landes, die gerade
   // wirklich vorne liegt, statt einer flach ueber die Kugel gelegten Linie.
-  if(globeLand?.polys?.length){
-    for(const ring of globeLand.polys){
+  const landRinge = globeLandRinge();
+  if(landRinge){
+    for(const ring of landRinge){
       ctx.beginPath();
       for(let i = 0; i < ring.length; i++){
         const pt = projection(ring[i]);

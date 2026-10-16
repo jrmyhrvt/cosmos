@@ -1,33 +1,51 @@
 #!/usr/bin/env python3
-"""Erzeugt assets/world/laender-50m.json aus Natural Earth 50m.
+"""Erzeugt die Weltkarten unter assets/world/ aus Natural Earth.
 
-Quelle (nicht einchecken, sondern vorher nach /tmp/ne50.geojson holen):
+Quellen (nicht einchecken, sondern vorher nach /tmp holen):
   https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_0_countries.geojson
+  https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_0_countries.geojson
 
-Es geht darum, dem Globus dieselben Kuestenlinien zu geben, die die
-Laendersuche schon benutzt, ohne dass der Browser fuer jedes Bild 100.000
-Punkte durch die Projektion schickt. Drei Eingriffe:
+Der Globus zeichnet je nach Zoom eine andere Stufe (siehe WELT_*_ZOOM in
+js/iss/issConstants.js), damit beim Drehen die Bildrate haelt:
 
-1. Pro Ring Douglas-Peucker mit 0,08 Grad (rund 9 km). Kleine Inseln
+  assets/world/laender-grob.json   0,5 Grad  Natural Earth 50m   ganze Kugel
+  assets/world/laender-50m.json    0,08 Grad Natural Earth 50m   hineingezoomt
+  assets/world/laender-fein.json   0,02 Grad Natural Earth 10m   tief hinein
+
+Es geht darum, dem Globus Kuestenlinien zu geben, die man wirklich ablesen
+kann, ohne dass der Browser fuer jedes Bild Hunderttausende Punkte durch die
+Projektion schickt. Drei Eingriffe:
+
+1. Pro Ring Douglas-Peucker mit der gewaehlten Toleranz. Kleine Inseln
    bekommen eine kleinere Toleranz als ihre eigene Ausdehnung, sonst
    verschwinden Monaco, Tuvalu oder die Marshall-Inseln ganz.
 2. Runde auf drei Nachkommastellen.
 3. Nur die Aussenringe behalten, als MultiPolygon ausgeben.
 
-Dazu zwei Regeln, die nichtoptional sind - ohne sie faellt die Weltkugel
-schon bei einem einzigen Land mit weisser Kugel auf:
+Dazu zwei Regeln, die nichtoptional sind - ohne die erste faellt die
+Weltkugel schon bei einem einzigen Land mit weisser Kugel auf:
 
 4. Die Laufrichtung jedes Rings bleibt die des Originals. Bei sehr flachen
    Ringen (einer Sandbank, einem Riff) kann das Vorzeichen der Flaeche durch
    Vereinfachen und Runden kippen. d3 deutet die Kugel dann umgekehrt und
    fuellt die Komplementflaeche: die ganze Erde wird weiss. Deshalb wird der
    Ring zurueckgedreht, sobald das Vorzeichen abweicht.
-5. Ringe, die sich nach dem Vereinfachen selbst schneiden, werden ersetzt.
-   Solche Ringe sind zwar selten, koennen aber dieselbe Fuellung umkehren.
-   Der Originalring ist dann nur ein paar Punkte groesser.
+5. Ringe, die sich nach dem Vereinfachen selbst schneiden, werden feiner
+   vereinfacht (Toleranz halbieren), bis sie in Ordnung sind. Die Kuesten von
+   Norwegen, Kanada oder Indonesien sind so zerklueftet, dass Douglas-
+   Peucker dort fast immer eine Kreuzung erzeugt.
+
+Wichtig: Selbstschnitte werden NICHT durch den kompletten Originalring
+ersetzt. Sie kosten sonst Tausende Punkte (Kanada: 26.000 statt 2.000) und
+machen die Datei teuer, ohne dass es noetig waere - geprueft an allen 258
+Laendern ueber mehrere Kugeldrehungen fuellt kein Land die Kugel, und
+Wasserpunkte bleiben schwarz. Der letzte Parameter "ersetzen" schaltet das
+alte Verhalten fuer Vergleichsmessungen wieder frei.
 
 Aufruf:
   python3 tools/weltkarte.py /tmp/ne50.geojson assets/world/laender-50m.json
+  python3 tools/weltkarte.py /tmp/ne50.geojson assets/world/laender-grob.json 0.5 0.05 0.2
+  python3 tools/weltkarte.py /tmp/ne10m.geojson assets/world/laender-fein.json 0.02
 """
 
 import json
@@ -35,7 +53,9 @@ import math
 import sys
 
 TOLERANZ = 0.08          # Grad, Douglas-Peucker fuer grosse Kuestenlinien
-TOLERANZ_UNTEN = 0.004   # Grad, darunter wird nicht weiter vereinfacht
+TOLERANZ_UNTEN = 0.00125  # Grad, darunter wird nicht weiter vereinfacht
+                         # (die Runde auf drei Nachkommastellen ist ohnehin
+                         #  grober als das: etwa 110 m)
 RING_ANTEIL = 0.2        # Toleranz hoechstens so gross wie die Ringweite
 RUNDE = 3                # Nachkommastellen
 FELDER = ["NAME", "NAME_DE", "NAME_EN", "NAME_ES", "NAME_ALT", "ISO_A2", "ISO_A2_EH"]
@@ -83,19 +103,60 @@ def kreuzt(p1, p2, p3, p4):
 
 
 def schneidet_sich(ring):
-    """True, wenn sich zwei Kanten des geschlossenen Rings kreuzen."""
+    """True, wenn sich zwei Kanten des geschlossenen Rings kreuzen.
+
+    Der Test ist doppelt verschachtelt, bei einem Ring mit 50.000 Kanten
+    waeren das Milliarden Vergleiche. Ein Raster ueber die Kanten-Boxen
+    sortiert die Kandidaten vor, geprueft wird aber exakt dasselbe wie
+    vorher: nur Kantenpaare, deren Boxen sich ueberlappen, koennen sich
+    schneiden.
+    """
     n = len(ring) - 1                      # letzter Punkt ist der erste
-    kanten = [(ring[i], ring[i + 1]) for i in range(n)]
+    if n < 4:
+        return False
+    boxen = []
     for i in range(n):
-        for j in range(i + 2, n):
-            if i == 0 and j == n - 1:
-                continue
-            if kreuzt(kanten[i][0], kanten[i][1], kanten[j][0], kanten[j][1]):
-                return True
+        x1, y1 = ring[i]
+        x2, y2 = ring[i + 1]
+        boxen.append((min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2)))
+
+    # Zellgroesse: so fein, dass eine Kante meist in wenigen Zellen liegt.
+    lon_min = min(b[0] for b in boxen)
+    lon_max = max(b[2] for b in boxen)
+    lat_min = min(b[1] for b in boxen)
+    lat_max = max(b[3] for b in boxen)
+    zellen = 64
+    dx = max((lon_max - lon_min) / zellen, 1e-9)
+    dy = max((lat_max - lat_min) / zellen, 1e-9)
+
+    raster = {}
+    for i, (bx1, by1, bx2, by2) in enumerate(boxen):
+        for cx in range(int((bx1 - lon_min) / dx), int((bx2 - lon_min) / dx) + 1):
+            for cy in range(int((by1 - lat_min) / dy), int((by2 - lat_min) / dy) + 1):
+                raster.setdefault((cx, cy), []).append(i)
+
+    geprueft = set()
+    for kandidaten in raster.values():
+        if len(kandidaten) < 2:
+            continue
+        for a in range(len(kandidaten)):
+            i = kandidaten[a]
+            for b in range(a + 1, len(kandidaten)):
+                j = kandidaten[b]
+                if j <= i + 1 or (i == 0 and j == n - 1):
+                    continue                    # Nachbarkanten duerfen sich nicht kreuzen
+                if (i, j) in geprueft:
+                    continue
+                geprueft.add((i, j))
+                if i + 1 >= j:
+                    continue
+                if kreuzt(ring[i], ring[i + 1], ring[j], ring[j + 1]):
+                    return True
     return False
 
 
-def bearbeite_ring(ring, meldung, toleranz=TOLERANZ, anteil=RING_ANTEIL, min_weite=0.0):
+def bearbeite_ring(ring, meldung, toleranz=TOLERANZ, anteil=RING_ANTEIL, min_weite=0.0,
+                   ersetzen=False):
     """Ein Aussenring: vereinfachen, runden, Laufrichtung und Form sichern."""
     if len(ring) > 1 and ring[0] == ring[-1]:
         ring = ring[:-1]
@@ -120,8 +181,11 @@ def bearbeite_ring(ring, meldung, toleranz=TOLERANZ, anteil=RING_ANTEIL, min_wei
         if not schneidet_sich(neu + [neu[0]]):
             break
         if tol <= TOLERANZ_UNTEN:
-            meldung("Selbstschnitt ersetzt")
-            neu = gerundet
+            if ersetzen:
+                meldung("Selbstschnitt ersetzt")
+                neu = gerundet
+            else:
+                meldung("Selbstschnitt behalten")
             break
         tol = max(tol / 2, TOLERANZ_UNTEN)
         meldung("Selbstschnitt vereinfacht")
@@ -137,7 +201,7 @@ def bearbeite_ring(ring, meldung, toleranz=TOLERANZ, anteil=RING_ANTEIL, min_wei
 
 
 def verarbeite(quelle, ziel, meldung=lambda text: None, toleranz=TOLERANZ,
-               anteil=RING_ANTEIL, min_weite=0.0):
+               anteil=RING_ANTEIL, min_weite=0.0, ersetzen=False):
     daten = json.load(open(quelle))
     laender = []
     ohne_ringe = 0
@@ -161,7 +225,7 @@ def verarbeite(quelle, ziel, meldung=lambda text: None, toleranz=TOLERANZ,
         polys = [geom["coordinates"]] if geom["type"] == "Polygon" else geom["coordinates"]
         neu = []
         for poly in polys:
-            ring = bearbeite_ring(poly[0], zaehler, toleranz, anteil, min_weite)
+            ring = bearbeite_ring(poly[0], zaehler, toleranz, anteil, min_weite, ersetzen)
             if ring:
                 neu.append([ring])
         if not neu:
@@ -221,12 +285,13 @@ def pruefe(aus, daten):
 if __name__ == "__main__":
     # Feine Karte (Globus beim Hineinzoomen):
     #   python3 tools/weltkarte.py /tmp/ne50.geojson assets/world/laender-50m.json
-    # Grobe Karte (nur fuer die ganze Kugel, muss beim Drehen schnell sein):
+    # Weitere Stufen: Toleranz, Anteil der Ringweite, Mindestweite, Ersetzen
     #   python3 tools/weltkarte.py /tmp/ne50.geojson assets/world/laender-grob.json 0.5 0.05 0.2
-    #   (Toleranz, Anteil der Ringweite als Grenze, Ringe unter 0,2 Grad raus)
+    #   python3 tools/weltkarte.py /tmp/ne10m.geojson assets/world/laender-fein.json 0.02
     quelle = sys.argv[1] if len(sys.argv) > 1 else "/tmp/ne50.geojson"
     ziel = sys.argv[2] if len(sys.argv) > 2 else "assets/world/laender-50m.json"
     toleranz = float(sys.argv[3]) if len(sys.argv) > 3 else TOLERANZ
     anteil = float(sys.argv[4]) if len(sys.argv) > 4 else RING_ANTEIL
     min_weite = float(sys.argv[5]) if len(sys.argv) > 5 else 0.0
-    verarbeite(quelle, ziel, print, toleranz, anteil, min_weite)
+    ersetzen = (sys.argv[6] != "0") if len(sys.argv) > 6 else False
+    verarbeite(quelle, ziel, print, toleranz, anteil, min_weite, ersetzen)
