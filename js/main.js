@@ -3,6 +3,7 @@ import { addEventToCalendar, changeOffset, closeDetail, eventState, openDetail, 
 import { GLOSTAR_DATA, jumpToGloStar, openGloStarDetail, renderGloStar } from "./glostar/glostar.js";
 import { berechneSternwort } from "./home/starWord.js";
 import { pruneGlobes } from "./iss/issManager.js";
+import { issModellOffen, schliesseIssModell } from "./iss/issDetailView.js";
 import { issPassSprache } from "./iss/issPassView.js";
 import { TRANSLATIONS } from "./translations.js";
 export let currentLang = 'de';
@@ -343,6 +344,11 @@ function swipeIgnoriertesZiel(el){
 }
 
 function zurueck(){
+  // Die freie 3D-Ansicht der Station liegt über allem - sie schliesst zuerst.
+  if(issModellOffen()){
+    schliesseIssModell();
+    return;
+  }
   const offen = document.querySelector(".detail-page.active");
   if(offen){
     const prefix = offen.id.replace("-detail", "");

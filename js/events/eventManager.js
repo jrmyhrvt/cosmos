@@ -2,6 +2,7 @@ import { EVENTS, getEventCategory, updateSyncInfo } from "../api.js";
 import { glostarLookupLabel, jumpToGloStar } from "../glostar/glostar.js";
 import { formatIssLat, formatIssLon, globeZoomRaus, globeZoomReset, mountGlobe, pruneGlobes, updateIssReadouts } from "../iss/issManager.js";
 import { renderIssPass } from "../iss/issPassView.js";
+import { oeffneIssModell } from "../iss/issDetailView.js";
 import { currentLang } from "../main.js";
 import { deliverEventIcs, googleCalendarUrl } from "./calendarExport.js";
 import { FEED_I18N, SVG_ICONS, TRANSLATIONS, cleanFeedText, extractFeedFacts, localizeRegions, translateFeedTitle } from "../translations.js";
@@ -276,6 +277,12 @@ export function openDetail(eventId, viewPrefix){
         </div>
         <div class="globe-hint" id="globeZoomHint">${t.globe_zoom_hint}</div>
       </div>
+      <!-- Freie 3D-Ansicht der Station: Ziehen dreht um die ISS, zwei Finger
+           oder Mausrad zoomen bis ins Detail hinein - wie bei NASA Eyes. -->
+      <button type="button" class="iss-detail-btn" id="issDetailViewBtn">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 3 7v10l9 5 9-5V7zM12 4.3 18.8 8 12 11.7 5.2 8zm-7 5.3 6 3.3v6.8l-6-3.3zm8 10.1v-6.8l6-3.3v6.8z"/></svg>
+        <span>${t.iss_detail_view}</span>
+      </button>
       <div class="eyebrow">${eventKind}</div>
       <h1 style="margin-bottom:10px">${eventName}</h1>
 
@@ -321,6 +328,7 @@ export function openDetail(eventId, viewPrefix){
     document.getElementById("globeZoomIn")?.addEventListener("click", () => globeZoomRaus("globeCanvasDetail", 1.6));
     document.getElementById("globeZoomOut")?.addEventListener("click", () => globeZoomRaus("globeCanvasDetail", 1 / 1.6));
     document.getElementById("globeZoomReset")?.addEventListener("click", () => globeZoomReset("globeCanvasDetail"));
+    document.getElementById("issDetailViewBtn")?.addEventListener("click", () => oeffneIssModell());
     updateIssReadouts();
     renderIssPass();
     return;
