@@ -334,9 +334,27 @@ window.addEventListener('touchmove', (e) => {
     pointerY = e.touches[0].clientY;
   }
 }, { passive: true });
-// Horizontales Zurueck-Swipen auf dem Handy und iPad
+// Horizontales Zurueck-Swipen auf dem Handy und iPad: nach links gehen wir eine
+// Ebene zurueck (offene Detailseite schliessen, sonst zur Startansicht). Auf
+// Kugel, Modell und Bedienelementen bleibt der Finger ohne Wirkung.
+function swipeIgnoriertesZiel(el){
+  if(!el || !el.closest) return false;
+  return !!el.closest("canvas, input, textarea, select, button, a, model-viewer, .model-viewer, [contenteditable]");
+}
+
+function zurueck(){
+  const offen = document.querySelector(".detail-page.active");
+  if(offen){
+    const prefix = offen.id.replace("-detail", "");
+    closeDetail(prefix);
+    return;
+  }
+  const aktuelleAnsicht = document.querySelector(".view.active");
+  if(aktuelleAnsicht && aktuelleAnsicht.id !== "home") switchView("home");
+}
+
 window.addEventListener('touchstart', (e) => {
-  if(e.touches && e.touches.length === 1){
+  if(e.touches && e.touches.length === 1 && !swipeIgnoriertesZiel(e.target)){
     window.__swipeStart = { x: e.touches[0].clientX, y: e.touches[0].clientY, time: Date.now() };
   } else {
     delete window.__swipeStart;
@@ -344,18 +362,16 @@ window.addEventListener('touchstart', (e) => {
 }, { passive: true });
 
 window.addEventListener('touchend', (e) => {
-  if(window.__swipeStart && e.changedTouches && e.changedTouches.length === 1){
-    const dx = e.changedTouches[0].clientX - window.__swipeStart.x;
-    const dy = Math.abs(e.changedTouches[0].clientY - window.__swipeStart.y);
-    const dt = Date.now() - window.__swipeStart.time;
-    // Nach links swipen: dx < -80px, mehr horizontal als vertikal, schnell genug
-    if(dx < -80 && dy < Math.abs(dx) * 0.5 && dt < 800){
-      delete window.__swipeStart;
-      if(window.history && window.history.length > 1) window.history.back();
-      return;
-    }
-  }
+  const start = window.__swipeStart;
   delete window.__swipeStart;
+  if(!start || !e.changedTouches || e.changedTouches.length !== 1) return;
+  const dx = e.changedTouches[0].clientX - start.x;
+  const dy = Math.abs(e.changedTouches[0].clientY - start.y);
+  const dt = Date.now() - start.time;
+  // Nach links swipen: mehr horizontal als vertikal, zuegig genug
+  if(dx < -80 && dy < Math.abs(dx) * 0.5 && dt < 800){
+    zurueck();
+  }
 }, { passive: true });
 
 

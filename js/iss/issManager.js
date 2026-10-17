@@ -87,6 +87,12 @@ const globeFeinNachIso = new Map();
 export let globeAnimationId = null;
 export const globes = new Map();
 
+// Grenzen des Globus-Zooms. 1 = ganze Kugel. Der obere Wert ist bewusst hoch
+// gewaehlt: erst bei maximalem Zoom soll sich die Station samt Umgebung
+// wirklich im Detail ansehen lassen.
+export const GLOBE_ZOOM_MIN = 1;
+export const GLOBE_ZOOM_MAX = 50;
+
 // Weltumschliessender Punkt je Land und sein Radius, einmal beim Laden
 // berechnet. Beim Zeichnen werden nur die Laender genommen, die den Ausschnitt
 // wirklich erreichen - die Projektion rechnet sonst weiter Punkte fuer
@@ -546,7 +552,7 @@ function modellVorbereiten(instance){
 function setzeModell(instance, punkt, anteil){
   const el = instance.modellEl;
   if(!el || !instance.modellGeladen) return false;
-  const size = instance.radius * ISS_MODELL_ANTEIL * (instance.modellFaktor || MODELL_HUELLKUGEL);
+  const size = instance.radius * instance.zoom * ISS_MODELL_ANTEIL * (instance.modellFaktor || MODELL_HUELLKUGEL);
   el.style.visibility = "visible";
   el.style.opacity = anteil.toFixed(3);
   // Das Element ist unveraendert 300 px gross und wird nur skaliert: eine
@@ -1034,7 +1040,7 @@ export function mountGlobe(canvasId, statusId, options = {}){
     userRotation: 0,
     // Blickpunkt: geografischer Punkt in der Scheibenmitte. Beim ISS-Globus
     // steuert der Nutzer damit die Kugel frei, bis er sie selbst gedreht hat.
-    // Zoomfaktor der Projektion. 1 = ganze Kugel, 14 = dicht herangezoomt.
+    // Zoomfaktor der Projektion. 1 = ganze Kugel, bis GLOBE_ZOOM_MAX dicht heran.
     zoom: 1,
     viewLon: 0,
     viewLat: -8,
@@ -1140,7 +1146,7 @@ export function mountGlobe(canvasId, statusId, options = {}){
   const onWheel = e => {
     e.preventDefault();
     const faktor = e.deltaY < 0 ? 1.16 : 1 / 1.16;
-    instance.zoom = Math.max(1, Math.min(20, instance.zoom * faktor));
+    instance.zoom = Math.max(GLOBE_ZOOM_MIN, Math.min(GLOBE_ZOOM_MAX, instance.zoom * faktor));
   };
 
   // Zwei-Finger-Zoom auf dem Touchscreen. Solange zwei Finger auf dem Glas
@@ -1155,7 +1161,7 @@ export function mountGlobe(canvasId, statusId, options = {}){
     if(e.touches.length !== 2) return;
     const jetzt = pinchAbstand(e.touches);
     if(instance.pinch > 0 && jetzt > 0){
-      instance.zoom = Math.max(1, Math.min(20, instance.zoom * (jetzt / instance.pinch)));
+      instance.zoom = Math.max(GLOBE_ZOOM_MIN, Math.min(GLOBE_ZOOM_MAX, instance.zoom * (jetzt / instance.pinch)));
     }
     instance.pinch = jetzt;
     if(e.cancelable) e.preventDefault();
@@ -1198,13 +1204,13 @@ export function mountGlobe(canvasId, statusId, options = {}){
 
 // Zoom von aussen, also ueber die Buttons unter der Kugel. Zugriff ueber die
 // Instanz, damit keine zusaetzliche Kopie des Zoomwerts im DOM entsteht -
-// die Schleife liest ohnehin instance.zoom. Die Klemmung 1 bis 14 ist dieselbe
-// wie beim Mausrad, sonst wuerden die Buttons die Kugel weiter hineinzoomen
-// koennen als das Rad.
+// die Schleife liest ohnehin instance.zoom. Die Klemmung ist dieselbe wie beim
+// Mausrad, sonst wuerden die Buttons die Kugel weiter hineinzoomen koennen als
+// das Rad.
 export function globeZoomRaus(canvasId, faktor = 1.35){
   const instance = globes.get(canvasId);
   if(!instance) return;
-  instance.zoom = Math.max(1, Math.min(20, instance.zoom * faktor));
+  instance.zoom = Math.max(GLOBE_ZOOM_MIN, Math.min(GLOBE_ZOOM_MAX, instance.zoom * faktor));
   // Mit hineinzoomen ist die automatische Zentrierung vorbei, sonst sprengt der
   // naechste Frame den Blick wieder auf das ganze Land zurueck.
   if(faktor > 1) instance.userMoved = true;
